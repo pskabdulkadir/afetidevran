@@ -1054,12 +1054,13 @@ async function triggerAutonomousTx(scan: any) {
     // Gas station API hatasını sessizce yoksay (ethers.js arka plan sorgusu)
     if (err.message?.includes("gasstation.polygon.technology") || err.message?.includes("gas station")) {
       console.log(`[Gas Station Filter] Ethers.js arka plan gas sorgusu hatası filtrelendi, işleme devam ediliyor...`);
-      return;
+      status = "PENDING"; // Continue as pending instead of failing
+      notes = `[GAS_STATION_ERROR_FILTERED] İşlem hâlâ pending - gas sorgusu hatası kontrat'ı etkilemedi`;
+    } else {
+      status = "FAILED";
+      notes = `[HATA] ${err.message?.substring(0, 100) || "Bilinmeyen hata"}`;
+      console.error(`[Web3 TX Error] ${notes}`, err);
     }
-
-    status = "FAILED";
-    notes = `[HATA] ${err.message?.substring(0, 100) || "Bilinmeyen hata"}`;
-    console.error(`[Web3 TX Error] ${notes}`, err);
 
     selfHealingLogs.unshift({
       timestamp: new Date().toISOString(),
