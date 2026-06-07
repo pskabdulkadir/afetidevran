@@ -275,9 +275,21 @@ async function fetchOnChainDexPrice(
       const price = parseFloat(ethers.formatUnits(finalAmount, decimalsOut));
       
       // Sürdürülebilir Gerçeklik Kalkanı (Realistic Bounds Guard)
-      // Canlı ağdaki on-chain havuz fiyatı CoinGecko genel piyasa fiyatından en fazla %1.5 sapabilir.
-      // Bu sapmanın dışındaki tüm fiktif veya düşük likiditeli havuz anormalliklerini eliyoruz.
-      if (price > fallbackPrice * 0.985 && price < fallbackPrice * 1.015) {
+      // Egzotik/Volatil kategorideki pariteler (QUICK, GNS, LINK) daha dinamik ve çılgın dalgalandığı için onlara %5.0 süzme esnekliği tanıyoruz.
+      // Ana pariteler için ise koruyucu %1.5 duvarını muhafaza ediyoruz.
+      const isExotic = 
+        tokenIn.toLowerCase() === "0xb5c064f955d8e15a3c37a18c282985d9f150b2a6" ||
+        tokenOut.toLowerCase() === "0xb5c064f955d8e15a3c37a18c282985d9f150b2a6" ||
+        tokenIn.toLowerCase() === "0xe5417af4104445c5770054F718f4a3390977ebdf" ||
+        tokenOut.toLowerCase() === "0xe5417af4104445c5770054F718f4a3390977ebdf" ||
+        tokenIn.toLowerCase() === "0x53e0bca359ccb311a2c2e1733b12bd711b11801b" ||
+        tokenOut.toLowerCase() === "0x53e0bca359ccb311a2c2e1733b12bd711b11801b";
+
+      const maxDeviation = isExotic ? 0.05 : 0.015;
+      const lower = fallbackPrice * (1 - maxDeviation);
+      const upper = fallbackPrice * (1 + maxDeviation);
+
+      if (price > lower && price < upper) {
         return price;
       }
     }
@@ -851,15 +863,28 @@ async function generateRandomScan() {
   const gasCostMatic = botConfig.gasLimitEstimate * currentGasPriceGwei * 1e-9;
   const gasCostUsd = parseFloat((gasCostMatic * MATIC_PRICE_USD).toFixed(2));
   
+  // Egzotik ve sığ havuzlarda büyük hacimli Flaş Kredi derin kaymaya (Price Impact / Slippage) uğrar.
+  // Hacim büyüdükçe kârlılık erir (büyük slippage yer), hacim küçüldükçe orijinal spread korunur (küçük hacim sızar).
+  const isExoticPair = pairId.includes("exotic");
+  let slippagePercent = 0;
+  if (isExoticPair) {
+    // Her 10,000 USDC borçlanma için %0.15 fiyat kayması (slippage ratio)
+    slippagePercent = (botConfig.borrowAmountUsd / 10000) * 0.15;
+  }
+
+  // Efektif kazanç oranı = (Uzun vadeli spread - slippage etkisi)
+  const effectiveSpreadPercent = Math.max(0, spreadPercent - slippagePercent);
+  
   // Brüt kazanç hesabı
   const isQuickswapCheaper = quickSwapPrice < sushiSwapPrice;
   const cheapPrice = isQuickswapCheaper ? quickSwapPrice : sushiSwapPrice;
   const expensivePrice = isQuickswapCheaper ? sushiSwapPrice : quickSwapPrice;
   
-  const grossProfitUsd = cheapPrice > 0 ? parseFloat(((botConfig.borrowAmountUsd * (expensivePrice - cheapPrice)) / cheapPrice).toFixed(2)) : 0;
+  // Brüt Kâr, fiyat kayması (slippage) düşüldükten sonra efektif arbitraj oranı üzerinden hesaplanır
+  const grossProfitUsd = cheapPrice > 0 ? parseFloat((botConfig.borrowAmountUsd * (effectiveSpreadPercent / 100)).toFixed(2)) : 0;
   const netProfitUsd = parseFloat((grossProfitUsd - gasCostUsd).toFixed(2));
   
-  const isSpreadProfitable = spreadPercent >= botConfig.minSpreadThreshold;
+  const isSpreadProfitable = effectiveSpreadPercent >= botConfig.minSpreadThreshold;
   const isNetProfitable = isSpreadProfitable && netProfitUsd > 0;
 
   // Predictive Mempool scanning etiketi önleme/front-running analizi ekler
