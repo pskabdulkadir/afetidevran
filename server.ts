@@ -954,7 +954,8 @@ async function triggerAutonomousTx(scan: any) {
     }
 
     const cleanPk = pk.trim().startsWith("0x") ? pk.trim() : `0x${pk.trim()}`;
-    const wallet = new ethers.Wallet(cleanPk, new ethers.JsonRpcProvider(botConfig.polygonRpcUrl));
+    const rpcProvider = new ethers.JsonRpcProvider(botConfig.polygonRpcUrl);
+    const wallet = new ethers.Wallet(cleanPk, rpcProvider);
 
     if (!botConfig.contractAddress || botConfig.contractAddress === "0x0000000000000000000000000000000000000000") {
       status = "FAILED";
@@ -978,6 +979,7 @@ async function triggerAutonomousTx(scan: any) {
     const contractAbi = [
       "function executeMultiFlashLoan(address tradeAsset, uint256 tradeAmount, address gasAsset, uint256 gasAmount) external"
     ];
+    // Signer olarak wallet kullan (provider bypass - gas station API'sinden kaçmak için)
     const contract = new ethers.Contract(botConfig.contractAddress, contractAbi, wallet);
 
     const USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
@@ -986,8 +988,18 @@ async function triggerAutonomousTx(scan: any) {
     const tradeAmountWei = ethers.parseUnits(botConfig.borrowAmountUsd.toString(), 6);
     const gasAmountWei = ethers.parseUnits(borrowedGasPol.toString(), 18);
 
-    // Fallback gas price (eğer dynamik almıyorsa)
+    // Gas price'ı RPC'den doğrudan al (gas station API'sini bypass et)
     let effectiveGasPrice = currentGasPriceGwei;
+    try {
+      const gasPrice = await rpcProvider.getGasPrice();
+      const gasPriceGwei = Math.round(parseFloat(ethers.formatUnits(gasPrice, "gwei")));
+      if (gasPriceGwei > 0 && gasPriceGwei < 1000) {
+        effectiveGasPrice = gasPriceGwei;
+      }
+    } catch (gasErr) {
+      console.log(`[Gas Price Fallback] RPC gas price çekilemedi, cache kullanılıyor: ${effectiveGasPrice} Gwei`);
+    }
+
     if (!effectiveGasPrice || effectiveGasPrice <= 0) {
       effectiveGasPrice = 74; // Polygon average
     }
