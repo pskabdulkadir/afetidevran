@@ -213,12 +213,13 @@ let botConfig = {
   gasToBorrowPol: 5, // Aave V3'ten ödünç alınacak POL (gas) miktarı
   isRunning: true,
   automaticExecution: false,
-  gasLimitEstimate: 360000, 
+  gasLimitEstimate: 360000,
   mevPrivateRelay: true,
   latencyThresholdMs: 800, // %100 Otonom Resilience tavan ayarı (3000ms yerine 800ms)
   omniChainEnabled: false, // Omni-Chain Genişleme Modülü
   dynamicBatchingEnabled: false, // Smart-Batching Likidasyon Optimizasyonu
-  mempoolScanningEnabled: false // Predictive Mempool Scanning (Önleyici Arbitraj)
+  mempoolScanningEnabled: false, // Predictive Mempool Scanning (Önleyici Arbitraj)
+  contractAddress: process.env.CONTRACT_ADDRESS || "0x0000000000000000000000000000000000000000" // Deployed contract address
 };
 
 // Canlı DEX Router adresleri ve getAmountsOut için resmi ABI deklarasyonu
@@ -913,59 +914,137 @@ async function generateRandomScan() {
     scanLogs.pop();
   }
 
-  // Otonom Tetikleme modu aktifse ve işlem karlı ise blockchain akışını başlat (Mocksuz dürüst tetikleme)
+  // Otonom Tetikleme modu aktifse ve işlem karlı ise blockchain akışını başlat (Gerçek Web3 TX'leri)
   if (isNetProfitable && botConfig.automaticExecution && botConfig.isRunning) {
-    const isSuccess = currentBlock % 7 !== 0; // %100 deterministik ve blok numarasına bağlı zincir onayı
-    triggerAutonomousTx(newScan, isSuccess);
+    triggerAutonomousTx(newScan).catch((err) => {
+      console.error("[Autonomous TX Error]", err.message);
+    });
   }
 }
 
-function triggerAutonomousTx(scan: any, forceSuccess: boolean) {
+async function triggerAutonomousTx(scan: any) {
   const txId = "tx-" + Date.now();
-  // Math.random zinciri kırıldı. Kriptografik sha256 tohumlu deterministik txHash
-  const signatureMat = `${scan.timestamp}-${scan.id}-${scan.tokenPairId}`;
-  const txHash = ethers.id(signatureMat);
-  
-  let status = "SUCCESS";
+  let status = "PENDING";
+  let txHash: string | undefined = undefined;
   let notes = "";
   const borrowedGasPol = Number((scan.gasCostUsd / MATIC_PRICE_USD).toFixed(1));
 
-  // Dynamic batching ve Mempool taramaları durumları
-  if (forceSuccess) {
-    status = "SUCCESS";
-    if (botConfig.mempoolScanningEnabled) {
-      notes = `[PREDICTIVE FRONT-RUNNING SUCCESS] Bekleyen (Pending) bir işlem mempool düzeyinde taranıp öngörüldü. Blok onaylanmadan milisaniyelerce önce Aave V3 flaş kredisi tetiklendi. ${scan.tokenPairName} kârı garantiye alındı! Net kâr $${scan.netProfitUsd} doğrudan USDC kasanıza akıtıldı. Seyis gaz maliyeti 0 POL.`;
-    } else if (botConfig.dynamicBatchingEnabled) {
-      const gweiVal = currentGasPriceGwei;
-      const chunks = gweiVal > 120 ? 5 : (gweiVal > 60 ? 3 : 1);
-      const chunkSize = Math.ceil(113 / chunks);
-      notes = `[DYNAMIC SMART-BATCH SYSTEM] Ağ Gwei değeri (${gweiVal}) analiz edildi. Toplu likidasyon 113 adetten ${chunks} adet mikro porsiyona bölündü (Chunk boyutu: ${chunkSize} likidasyon). Gas out olmadan başarıyla on-chain sonuçlandırıldı! Net kâr: $${scan.netProfitUsd}.`;
-    } else {
-      notes = `[AFETİ DEVRAN V5 - SIRMASIZ MİMARİ] Aave V3'ten sıfır teminatla $${botConfig.borrowAmountUsd} USDC ve ${borrowedGasPol} POL (Gas) anlık borç alındı. ${scan.routeType} rotasıyla müthiş arbitraj kilidi çözüldü! İşlem gas ücreti içeriden POL ile karşılandı. Cüzdanınızdaki 0 POL hiç azalmadı, net $${scan.netProfitUsd} kâr doğrudan cüzdan USDC kasanıza eklendi.`;
+  try {
+    const pk = process.env.PRIVATE_KEY;
+    if (!pk || pk.trim() === "") {
+      status = "FAILED";
+      notes = `[PRIVATE KEY HATASI] PRIVATE_KEY çevre değişkeni tanımlı değil. Web3 TX'si gönderilemiyor.`;
+      executionLogs.unshift({
+        id: txId,
+        timestamp: new Date().toISOString(),
+        tokenPairId: scan.tokenPairId,
+        tokenPairName: scan.tokenPairName,
+        status,
+        borrowedAmountUsd: botConfig.borrowAmountUsd,
+        gasBorrowedPol: borrowedGasPol,
+        gasCostUsd: scan.gasCostUsd,
+        grossProfitUsd: scan.grossProfitUsd,
+        netProfitUsd: 0,
+        notes
+      });
+      return;
     }
-    
-    // Cüzdan verilerini güncelle
-    walletState.totalRevenueUsd += scan.netProfitUsd;
-    walletState.usdc += scan.netProfitUsd;
-    walletState.totalGasBorrowedPol += borrowedGasPol;
-  } else {
-    // Revert durumlarının simülasyonu (V5 Güvenlik Zırhı)
-    const failureReason = currentBlock % 2 === 0 ? "SLIPPAGE_ARMOR_REVERT" : "REVERT_ON_CHAIN";
-    if (botConfig.dynamicBatchingEnabled && currentBlock % 3 !== 0) {
+
+    const cleanPk = pk.trim().startsWith("0x") ? pk.trim() : `0x${pk.trim()}`;
+    const wallet = new ethers.Wallet(cleanPk, new ethers.JsonRpcProvider(botConfig.polygonRpcUrl));
+
+    if (!botConfig.contractAddress || botConfig.contractAddress === "0x0000000000000000000000000000000000000000") {
+      status = "FAILED";
+      notes = `[KONTRAT HATASI] CONTRACT_ADDRESS çevre değişkeni tanımlı değil. Kontratı deploy edin ve .env'ye ekleyin.`;
+      executionLogs.unshift({
+        id: txId,
+        timestamp: new Date().toISOString(),
+        tokenPairId: scan.tokenPairId,
+        tokenPairName: scan.tokenPairName,
+        status,
+        borrowedAmountUsd: botConfig.borrowAmountUsd,
+        gasBorrowedPol: borrowedGasPol,
+        gasCostUsd: scan.gasCostUsd,
+        grossProfitUsd: scan.grossProfitUsd,
+        netProfitUsd: 0,
+        notes
+      });
+      return;
+    }
+
+    const contractAbi = [
+      "function executeMultiFlashLoan(address tradeAsset, uint256 tradeAmount, address gasAsset, uint256 gasAmount) external"
+    ];
+    const contract = new ethers.Contract(botConfig.contractAddress, contractAbi, wallet);
+
+    const USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
+    const WPOL_ADDRESS = "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270";
+
+    const tradeAmountWei = ethers.parseUnits(botConfig.borrowAmountUsd.toString(), 6);
+    const gasAmountWei = ethers.parseUnits(borrowedGasPol.toString(), 18);
+
+    notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor... Ağ onayı bekleniyor.`;
+    status = "PENDING";
+
+    const tx = await contract.executeMultiFlashLoan(
+      USDC_ADDRESS,
+      tradeAmountWei,
+      WPOL_ADDRESS,
+      gasAmountWei,
+      {
+        gasLimit: botConfig.gasLimitEstimate,
+        gasPrice: ethers.parseUnits(currentGasPriceGwei.toString(), "gwei")
+      }
+    );
+
+    txHash = tx.hash;
+    notes = `[TX BLOKZİNCİRE GÖNDERILDI] Hash: ${txHash.slice(0, 10)}... Ağ onayı bekleniyor...`;
+
+    selfHealingLogs.unshift({
+      timestamp: new Date().toISOString(),
+      title: "Gerçek Web3 İşlem Gönderildi",
+      desc: `${scan.tokenPairName} için Aave V3 Flaş Kredisi kontratı tetiklendi. TX Hash: ${txHash}`,
+      type: "INFO"
+    });
+
+    const receipt = await tx.wait(1);
+
+    if (receipt?.status === 1) {
       status = "SUCCESS";
-      const chunks = currentGasPriceGwei > 75 ? 4 : 2;
-      notes = `[BATCH_SETTLE_OPTIMIZER] Standart likidasyon tıkanacaktı ([BATCH_SETTLE_FAILED] riski algılandı!). Dynamic Batching devreye girip payloadı ${chunks} parçaya böldü. Settle işlemi %100 başarıyla tamamlandı. Gas tasarrufu yapıldı!`;
-      walletState.totalRevenueUsd += scan.netProfitUsd > 0 ? scan.netProfitUsd : 450;
-      walletState.usdc += scan.netProfitUsd > 0 ? scan.netProfitUsd : 450;
-    } else if (failureReason === "SLIPPAGE_ARMOR_REVERT") {
-      status = "FAILED_REVERT_PREVENTED";
-      notes = `[ZARAR ENGELLENDİ - REVERT] Madenci bloğu işlerken Quick-Sushi havuzu birleşti! V5 akıllı kontrat kâr koruma zırhı require() şartı gereği işlemi zincir düzeyinde revert etti. Borrowed ${borrowedGasPol} POL ve USDC borçları Aave'ye iade edildi. Cüzdan bakiye kaybı: 0 POL!`;
+      notes = `[BAŞARILI] ${scan.tokenPairName} arbitrajı blockchain üzerinde başarılı oldu! TX: ${txHash}`;
+      walletState.totalRevenueUsd += scan.netProfitUsd > 0 ? scan.netProfitUsd : 0;
       walletState.totalGasBorrowedPol += borrowedGasPol;
+
+      selfHealingLogs.unshift({
+        timestamp: new Date().toISOString(),
+        title: "Web3 İşlemi Başarı ile Tamamlandı",
+        desc: `Blok zincirde onaylandı. Kazanç gerçekleştirildi.`,
+        type: "RESOLVED"
+      });
     } else {
-      status = "BROADCAST_REVERTED";
-      notes = `[ÖNCÜ ISLAK SANDVİÇ ENGELİ] MEV botları private rpc kanalını izlerken öncü geçmeye çalıştı. Akıllı kontratımız milisaniye kontrolüyle işlemi iptale düşürdü. Flaş krediler geri döndü. Cüzdandan gas gitmedi. Sıfır kayıp!`;
+      status = "FAILED_REVERT";
+      notes = `[REVERT HATASI] Blockchain TX başarısız oldu (kontrat şartı veya slippage). TX: ${txHash}`;
       walletState.totalGasBorrowedPol += borrowedGasPol;
+
+      selfHealingLogs.unshift({
+        timestamp: new Date().toISOString(),
+        title: "Web3 İşlemi Revert Oldu",
+        desc: `Kontrat güvenlik şartı veya fiyat kaymması yüzünden işlem iptal edildi. Borçlar Aave'ye iade edildi.`,
+        type: "WARNING"
+      });
     }
+
+  } catch (err: any) {
+    status = "FAILED";
+    notes = `[HATA] ${err.message?.substring(0, 100) || "Bilinmeyen hata"}`;
+    console.error(`[Web3 TX Error] ${notes}`, err);
+
+    selfHealingLogs.unshift({
+      timestamp: new Date().toISOString(),
+      title: "Web3 TX Hatası",
+      desc: notes,
+      type: "WARNING"
+    });
   }
 
   const logEntry = {
@@ -974,12 +1053,12 @@ function triggerAutonomousTx(scan: any, forceSuccess: boolean) {
     tokenPairId: scan.tokenPairId,
     tokenPairName: scan.tokenPairName,
     status,
-    txHash: status !== "FAILED_REVERT_PREVENTED" ? txHash : undefined,
+    txHash,
     borrowedAmountUsd: botConfig.borrowAmountUsd,
     gasBorrowedPol: borrowedGasPol,
     gasCostUsd: scan.gasCostUsd,
     grossProfitUsd: scan.grossProfitUsd,
-    netProfitUsd: status === "SUCCESS" ? (scan.netProfitUsd > 0 ? scan.netProfitUsd : 450) : 0,
+    netProfitUsd: status === "SUCCESS" ? (scan.netProfitUsd > 0 ? scan.netProfitUsd : 0) : 0,
     notes
   };
 
@@ -1151,16 +1230,16 @@ app.post("/api/start-stop", (req, res) => {
   res.json({ success: true, isRunning: botConfig.isRunning });
 });
 
-app.post("/api/simulate-exploit", (req, res) => {
+app.post("/api/simulate-exploit", async (req, res) => {
   const { pairId } = req.body;
   const selPair = tokenPairs.find(p => p.id === pairId) || tokenPairs[0];
 
   // %2.4 karlı spread garantili V5 Fırsat Simülasyonu
-  const spread = botConfig.minSpreadThreshold + 1.84; 
+  const spread = botConfig.minSpreadThreshold + 1.84;
   const baseVal = selPair.id === "usdc-weth-sushi" ? 3140 : selPair.id === "usdc-weth-wbtc-tri" ? 71200 : 1.0;
   const cheapPrice = baseVal;
   const expensivePrice = baseVal * (1 + (spread / 100));
-  
+
   const grossProfitUsd = parseFloat(((botConfig.borrowAmountUsd * (expensivePrice - cheapPrice)) / cheapPrice).toFixed(2));
   const gasCostUsd = parseFloat(((botConfig.gasLimitEstimate * currentGasPriceGwei * 1e-9) * MATIC_PRICE_USD).toFixed(2));
   const netProfitUsd = parseFloat((grossProfitUsd - gasCostUsd).toFixed(2));
@@ -1180,8 +1259,8 @@ app.post("/api/simulate-exploit", (req, res) => {
     isProfitable: true
   };
 
-  // True verilerek %100 başarılı V5 Arbitraj Tetiklemesi canlandırılması
-  triggerAutonomousTx(pseudoScan, true);
+  // Gerçek Web3 TX tetiklemesi
+  await triggerAutonomousTx(pseudoScan);
   res.json({ success: true, targetScan: pseudoScan });
 });
 
