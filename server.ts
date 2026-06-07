@@ -220,7 +220,9 @@ let botConfig = {
   dynamicBatchingEnabled: false, // Smart-Batching Likidasyon Optimizasyonu
   mempoolScanningEnabled: false, // Predictive Mempool Scanning (Önleyici Arbitraj)
   contractAddress: process.env.CONTRACT_ADDRESS || "0x0000000000000000000000000000000000000000", // Deployed contract address
-  forceExecutionThreshold: parseFloat(process.env.FORCE_EXECUTION_THRESHOLD || "0") // Force execution threshold (Siber Karargâh modu)
+  forceExecutionThreshold: parseFloat(process.env.FORCE_EXECUTION_THRESHOLD || "0"), // Force execution threshold (Siber Karargâh modu)
+  skipProfitCheck: process.env.SKIP_PROFIT_CHECK === "TRUE", // Bypass profit validation
+  maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "500000") // Max gas limit override
 };
 
 // Canlı DEX Router adresleri ve getAmountsOut için resmi ABI deklarasyonu
@@ -908,12 +910,15 @@ async function generateRandomScan() {
 
   // DEBUG: Execute tetikleme koşullarını yazdır
   const walletPolStatus = walletState.pol >= 0.5 ? "OK" : "INSUFFICIENT";
-  console.log(`[EXECUTE_CHECK] ${newScan.tokenPairName} | NetProfit: $${newScan.netProfitUsd} | Profitable: ${isNetProfitable} | AutoExec: ${botConfig.automaticExecution} | Running: ${botConfig.isRunning} | POL: ${walletState.pol}(${walletPolStatus}) | ContractOK: ${botConfig.contractAddress !== "0x0000000000000000000000000000000000000000"}`);
+  const skipCheck = botConfig.skipProfitCheck ? "[SKIP_PROFIT_CHECK: AKTIF]" : "";
+  const shouldExecute = botConfig.skipProfitCheck || isNetProfitable;
+  console.log(`[EXECUTE_CHECK] ${newScan.tokenPairName} | NetProfit: $${newScan.netProfitUsd} | Profitable: ${isNetProfitable} | AutoExec: ${botConfig.automaticExecution} | Running: ${botConfig.isRunning} | POL: ${walletState.pol}(${walletPolStatus}) | ContractOK: ${botConfig.contractAddress !== "0x0000000000000000000000000000000000000000"} ${skipCheck}`);
 
-  // Otonom Tetikleme modu aktifse ve işlem karlı ise blockchain akışını başlat (Gerçek Web3 TX'leri)
-  if (isNetProfitable && botConfig.automaticExecution && botConfig.isRunning) {
+  // Otonom Tetikleme modu aktifse ve işlem karlı ise (ya da skipProfitCheck varsa) blockchain akışını başlat
+  if (shouldExecute && botConfig.automaticExecution && botConfig.isRunning) {
     if (botConfig.contractAddress !== "0x0000000000000000000000000000000000000000") {
-      console.log(`[EXECUTE_TRIGGER] ✅ Kârlı fırsat tetikleniyor: ${newScan.tokenPairName} | Threshold: ${minProfitForExecution}`);
+      const triggerReason = botConfig.skipProfitCheck ? "[FORCED]" : "[PROFITABLE]";
+      console.log(`[EXECUTE_TRIGGER] ✅ Fırsat tetikleniyor ${triggerReason}: ${newScan.tokenPairName} | Spread: ${effectiveSpreadPercent}% | Threshold: ${minProfitForExecution}`);
       triggerAutonomousTx(newScan).catch((err) => {
         console.error("[Autonomous TX Error]", err.message);
       });
@@ -921,7 +926,7 @@ async function generateRandomScan() {
       console.warn(`[EXECUTE_BLOCKED] Contract adres geçersiz (0x000...)`);
     }
   } else {
-    if (!isNetProfitable) console.log(`[EXECUTE_SKIP] Yetersiz kârlılık ($${newScan.netProfitUsd} < $${minProfitForExecution})`);
+    if (!shouldExecute) console.log(`[EXECUTE_SKIP] Yetersiz kârlılık ($${newScan.netProfitUsd} < $${minProfitForExecution})`);
     if (!botConfig.automaticExecution) console.log(`[EXECUTE_SKIP] Otomatik execution KAPAL`);
     if (!botConfig.isRunning) console.log(`[EXECUTE_SKIP] Sistem DURMALI`);
   }
