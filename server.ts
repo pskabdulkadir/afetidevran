@@ -1337,6 +1337,18 @@ app.post("/api/simulate-exploit", async (req, res) => {
   res.json({ success: true, targetScan: pseudoScan });
 });
 
+// Otonom DEX Tarama ve Execute Döngüsü (Her 5 Saniye)
+setInterval(async () => {
+  try {
+    if (botConfig.isRunning) {
+      await generateRandomScan();
+      await runLatencyAggregation();
+    }
+  } catch (err) {
+    console.error("[DEX Scan Error]", err instanceof Error ? err.message : err);
+  }
+}, 5000); // 5 saniyede bir
+
 // Render Ücretsiz Katman Uyku Engelleyici (Anti-Sleep Monitor)
 // Botu 7/24 aktif tutmak için her 10 dakikada bir kendi kendine HTTP isteği gönderir.
 setInterval(async () => {
