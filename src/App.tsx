@@ -30,6 +30,7 @@ import ContractConsole from "./components/ContractConsole";
 import WalletPanel from "./components/WalletPanel";
 import ReportModule from "./components/ReportModule";
 import SiberKarargah from "./components/SiberKarargah";
+import CommandCenter from "./components/CommandCenter";
 
 export default function App() {
   const [config, setConfig] = useState<BotConfig>({
@@ -44,7 +45,9 @@ export default function App() {
     latencyThresholdMs: 800,
     omniChainEnabled: false,
     dynamicBatchingEnabled: false,
-    mempoolScanningEnabled: false
+    mempoolScanningEnabled: false,
+    contractAddress: "0x0000000000000000000000000000000000000000",
+    forceExecutionThreshold: 0
   });
 
   const [blockchain, setBlockchain] = useState({
@@ -670,11 +673,17 @@ export default function App() {
 
           </div>
         ) : viewMode === "siber_karargah" ? (
-          <SiberKarargah 
-            siberState={siberState} 
-            backupWallet="0x0f4Bdc545e811060c48B7f16029e5580cB70a680" 
-            onRefreshSiber={fetchState} 
-          />
+          <div className="space-y-6">
+            <SiberKarargah
+              siberState={siberState}
+              backupWallet="0x0f4Bdc545e811060c48B7f16029e5580cB70a680"
+              onRefreshSiber={fetchState}
+            />
+            <CommandCenter
+              contractAddress={config.contractAddress}
+              forceExecutionThreshold={config.forceExecutionThreshold}
+            />
+          </div>
         ) : (
           /* Solidity Kod Gösterici */
           <div className="space-y-6">

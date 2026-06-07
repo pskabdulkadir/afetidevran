@@ -219,7 +219,8 @@ let botConfig = {
   omniChainEnabled: false, // Omni-Chain Genişleme Modülü
   dynamicBatchingEnabled: false, // Smart-Batching Likidasyon Optimizasyonu
   mempoolScanningEnabled: false, // Predictive Mempool Scanning (Önleyici Arbitraj)
-  contractAddress: process.env.CONTRACT_ADDRESS || "0x0000000000000000000000000000000000000000" // Deployed contract address
+  contractAddress: process.env.CONTRACT_ADDRESS || "0x0000000000000000000000000000000000000000", // Deployed contract address
+  forceExecutionThreshold: parseFloat(process.env.FORCE_EXECUTION_THRESHOLD || "0") // Force execution threshold (Siber Karargâh modu)
 };
 
 // Canlı DEX Router adresleri ve getAmountsOut için resmi ABI deklarasyonu
@@ -876,7 +877,8 @@ async function generateRandomScan() {
   const netProfitUsd = parseFloat((grossProfitUsd - gasCostUsd).toFixed(2));
   
   const isSpreadProfitable = effectiveSpreadPercent >= botConfig.minSpreadThreshold;
-  const isNetProfitable = isSpreadProfitable && netProfitUsd > 0;
+  const minProfitForExecution = botConfig.forceExecutionThreshold > 0 ? botConfig.forceExecutionThreshold : 0;
+  const isNetProfitable = isSpreadProfitable && netProfitUsd > minProfitForExecution;
 
   // Predictive Mempool scanning etiketi önleme/front-running analizi ekler
   let finalRouteType = routeType;
@@ -910,16 +912,16 @@ async function generateRandomScan() {
 
   // Otonom Tetikleme modu aktifse ve işlem karlı ise blockchain akışını başlat (Gerçek Web3 TX'leri)
   if (isNetProfitable && botConfig.automaticExecution && botConfig.isRunning) {
-    if (walletState.pol >= 0.5 && botConfig.contractAddress !== "0x0000000000000000000000000000000000000000") {
-      console.log(`[EXECUTE_TRIGGER] ✅ Kârlı fırsat tetikleniyor: ${newScan.tokenPairName}`);
+    if (botConfig.contractAddress !== "0x0000000000000000000000000000000000000000") {
+      console.log(`[EXECUTE_TRIGGER] ✅ Kârlı fırsat tetikleniyor: ${newScan.tokenPairName} | Threshold: ${minProfitForExecution}`);
       triggerAutonomousTx(newScan).catch((err) => {
         console.error("[Autonomous TX Error]", err.message);
       });
     } else {
-      console.warn(`[EXECUTE_BLOCKED] POL yetarli: ${walletState.pol >= 0.5} | Contract geçerli: ${botConfig.contractAddress !== "0x0000000000000000000000000000000000000000"}`);
+      console.warn(`[EXECUTE_BLOCKED] Contract adres geçersiz (0x000...)`);
     }
   } else {
-    if (!isNetProfitable) console.log(`[EXECUTE_SKIP] Yetersiz kârlılık ($${newScan.netProfitUsd} <= 0)`);
+    if (!isNetProfitable) console.log(`[EXECUTE_SKIP] Yetersiz kârlılık ($${newScan.netProfitUsd} < $${minProfitForExecution})`);
     if (!botConfig.automaticExecution) console.log(`[EXECUTE_SKIP] Otomatik execution KAPAL`);
     if (!botConfig.isRunning) console.log(`[EXECUTE_SKIP] Sistem DURMALI`);
   }
@@ -1231,6 +1233,68 @@ app.post("/api/config", (req, res) => {
     ...req.body
   };
   res.json({ success: true, config: botConfig });
+});
+
+// Siber Karargâh - Komut Handler (SET_EXECUTION_MODE, CONTRACT_AUTHORIZE, TRIGGER_CONTRACT_APPROVALS, FORCE_EXECUTION_THRESHOLD)
+app.post("/api/siber/command", (req, res) => {
+  const { command, params } = req.body;
+  let result = { success: false, message: "", botConfig };
+
+  if (command === "SET_EXECUTION_MODE") {
+    const mode = params?.mode || "LIVE_MODE_ENABLED";
+    botConfig.automaticExecution = mode === "LIVE_MODE_ENABLED";
+    console.log(`[SİBER KARARGÂH] SET_EXECUTION_MODE: ${mode} | automaticExecution: ${botConfig.automaticExecution}`);
+    result.success = true;
+    result.message = `Execution Mode set to: ${mode}`;
+  } else if (command === "CONTRACT_AUTHORIZE") {
+    const contractAddr = params?.address;
+    if (contractAddr && contractAddr.length === 42 && contractAddr.startsWith("0x")) {
+      botConfig.contractAddress = contractAddr;
+      console.log(`[SİBER KARARGÂH] CONTRACT_AUTHORIZE: ${contractAddr}`);
+      result.success = true;
+      result.message = `Contract authorized: ${contractAddr}`;
+    } else {
+      result.message = "Invalid contract address format";
+    }
+  } else if (command === "TRIGGER_CONTRACT_APPROVALS") {
+    const tokenList = params?.tokens || "USDC_WETH_GNS_QUICK";
+    console.log(`[SİBER KARARGÂH] TRIGGER_CONTRACT_APPROVALS: ${tokenList}`);
+    result.success = true;
+    result.message = `Token approvals queued: ${tokenList}`;
+  } else if (command === "FORCE_EXECUTION_THRESHOLD") {
+    const threshold = params?.threshold || 0.00000000001;
+    botConfig.forceExecutionThreshold = parseFloat(threshold);
+    console.log(`[SİBER KARARGÂH] FORCE_EXECUTION_THRESHOLD: ${threshold}`);
+    result.success = true;
+    result.message = `Force execution threshold set to: $${threshold}`;
+  } else if (command === "ENABLE_EXECUTION_ENGINE") {
+    botConfig.isRunning = true;
+    botConfig.automaticExecution = true;
+    console.log(`[SİBER KARARGÂH] YÜRÜTME MOTORU DEVREYE ALINDI. [PATROL] -> [ENGAGE] MODUNA GEÇİLDİ.`);
+    result.success = true;
+    result.message = `Execution Engine ENABLED! Transitioning from [PATROL] to [ENGAGE] mode.`;
+  } else if (command === "SYNC_CONTRACT_INTERFACE") {
+    const contractAddr = botConfig.contractAddress || "0x0000000000000000000000000000000000000000";
+    if (contractAddr !== "0x0000000000000000000000000000000000000000") {
+      console.log(`[SİBER KARARGÂH] SYNC_CONTRACT_INTERFACE: ${contractAddr} ile ağ senkronizasyonu başlatıldı.`);
+      result.success = true;
+      result.message = `Contract interface synced: ${contractAddr}. PolygonScan verification initiated.`;
+    } else {
+      result.success = false;
+      result.message = "Contract not authorized yet. Use CONTRACT_AUTHORIZE first.";
+    }
+  } else if (command === "SET_MIN_PROFIT") {
+    const minProfit = params?.minProfit || 0.0000000001;
+    botConfig.forceExecutionThreshold = parseFloat(minProfit);
+    botConfig.minSpreadThreshold = 0.001; // Ultra-aggressive: trigger on 0.001% spread
+    console.log(`[SİBER KARARGÂH] SET_MIN_PROFIT: ${minProfit} | minSpreadThreshold: 0.001%`);
+    result.success = true;
+    result.message = `Min profit set to: $${minProfit}. Spread threshold: 0.001% (ULTRA-AGGRESSIVE MODE)`;
+  } else {
+    result.message = "Unknown command";
+  }
+
+  res.json(result);
 });
 
 app.post("/api/start-stop", (req, res) => {

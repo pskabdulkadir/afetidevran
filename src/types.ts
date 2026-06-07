@@ -38,6 +38,8 @@ export interface BotConfig {
   omniChainEnabled: boolean;
   dynamicBatchingEnabled: boolean;
   mempoolScanningEnabled: boolean;
+  contractAddress?: string; // Deployed arbitrage contract address
+  forceExecutionThreshold?: number; // Force execution threshold (Siber Karargâh mode)
 }
 
 export enum LogStatus {
