@@ -546,12 +546,15 @@ async function updateEthersBalances() {
 
         // Canlı Gas Fiyatı (Gwei) Sorgula
         try {
-          const feeData = await runWithTimeout(provider.getFeeData(), 1500);
+          const feeData = await runWithTimeout(provider.getFeeData(), 2000);
           if (feeData && feeData.gasPrice) {
-            currentGasPriceGwei = Math.round(parseFloat(ethers.formatUnits(feeData.gasPrice, "gwei")));
+            const newGasPrice = Math.round(parseFloat(ethers.formatUnits(feeData.gasPrice, "gwei")));
+            if (newGasPrice > 0 && newGasPrice < 1000) {
+              currentGasPriceGwei = newGasPrice;
+            }
           }
         } catch (gasErr) {
-          console.log(`[Ethers Gas İstasyonu Koruması] Gas istasyonu/fee verisi RPC [${rpcUrl}] üzerinden alınamadı. Son Gwei değeri korunuyor: ${currentGasPriceGwei} Gwei`);
+          console.log(`[Gas Station Fallback] Dinamik gas fiyatı alınamadı, son bilinen değer kullanılıyor: ${currentGasPriceGwei} Gwei`);
         }
 
         // 1. Native POL bakiyesini sorgula (Zaman aşımı korumalı)
@@ -955,7 +958,7 @@ async function triggerAutonomousTx(scan: any) {
 
     if (!botConfig.contractAddress || botConfig.contractAddress === "0x0000000000000000000000000000000000000000") {
       status = "FAILED";
-      notes = `[KONTRAT HATASI] CONTRACT_ADDRESS çevre değişkeni tanımlı değil. Kontratı deploy edin ve .env'ye ekleyin.`;
+      notes = `[KONTRAT HATASI] CONTRACT_ADDRESS tanımlı değil. Render Dashboard Environment kısmına ekle: CONTRACT_ADDRESS=0x236A513F0a834a703bEd350Ceed8751CA4BFAb37`;
       executionLogs.unshift({
         id: txId,
         timestamp: new Date().toISOString(),
@@ -983,7 +986,13 @@ async function triggerAutonomousTx(scan: any) {
     const tradeAmountWei = ethers.parseUnits(botConfig.borrowAmountUsd.toString(), 6);
     const gasAmountWei = ethers.parseUnits(borrowedGasPol.toString(), 18);
 
-    notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor... Ağ onayı bekleniyor.`;
+    // Fallback gas price (eğer dynamik almıyorsa)
+    let effectiveGasPrice = currentGasPriceGwei;
+    if (!effectiveGasPrice || effectiveGasPrice <= 0) {
+      effectiveGasPrice = 74; // Polygon average
+    }
+
+    notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (Gas: ${effectiveGasPrice} Gwei)... Ağ onayı bekleniyor.`;
     status = "PENDING";
 
     const tx = await contract.executeMultiFlashLoan(
@@ -993,7 +1002,7 @@ async function triggerAutonomousTx(scan: any) {
       gasAmountWei,
       {
         gasLimit: botConfig.gasLimitEstimate,
-        gasPrice: ethers.parseUnits(currentGasPriceGwei.toString(), "gwei")
+        gasPrice: ethers.parseUnits(effectiveGasPrice.toString(), "gwei")
       }
     );
 
