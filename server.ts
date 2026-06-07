@@ -300,15 +300,8 @@ async function fetchOnChainDexPrice(
   return null;
 }
 
-// GAS STATION HATASINI KESİN ÇÖZÜM:
-async function getGasPrice() {
-  try {
-    // API'yi hiç çağırmadan doğrudan manuel fallback değerini döndür
-    return ethers.parseUnits("74", "gwei");
-  } catch (error) {
-    return ethers.parseUnits("74", "gwei");
-  }
-}
+// KESİN GAS PRICE SABITÎ - POLYGON GAS STATION API'SİNİ TAMAMEN BYPASS ET
+const FIXED_GAS_PRICE = ethers.parseUnits("50", "gwei");
 
 // Canlı Token Üretim Fiyatları Portu (CoinGecko Feed)
 let pricesUsd = {
@@ -512,8 +505,8 @@ async function updateEthersBalances() {
         const tempProvider = new ethers.JsonRpcProvider(botConfig.polygonRpcUrl || rpcPool[0], 137, { staticNetwork: true });
         const blockNum = await runWithTimeout(tempProvider.getBlockNumber(), 1500);
         currentBlock = blockNum;
-        // Gas price doğrudan manuel fallback değeri (API çağrısını kesmek için)
-        currentGasPriceGwei = 74;
+        // Gas price sabit değer (Polygon gas station bypass)
+        currentGasPriceGwei = 50;
       } catch (err) {
         // Sessiz hata
       }
@@ -548,8 +541,8 @@ async function updateEthersBalances() {
         const blockNum = await runWithTimeout(provider.getBlockNumber(), 1500);
         currentBlock = blockNum;
 
-        // Gas fiyatı doğrudan manuel değer (API çağrısını kesmek için)
-        currentGasPriceGwei = 74;
+        // Gas fiyatı sabit değer (Polygon gas station bypass)
+        currentGasPriceGwei = 50;
 
         // 1. Native POL bakiyesini sorgula (Zaman aşımı korumalı)
         const polWei = await runWithTimeout(provider.getBalance(address), 1500);
@@ -626,7 +619,7 @@ async function updateEthersBalances() {
 
 // Gerçek zamanlı Web3 durum parametreleri
 let currentBlock = 59312019;
-let currentGasPriceGwei = 74; 
+let currentGasPriceGwei = 50; // Sabit gas price (gas station bypass)
 let MATIC_PRICE_USD = 0.38;
 
 // Taramalar ve işlem geçmişleri
@@ -948,8 +941,8 @@ async function triggerAutonomousTx(scan: any) {
     }
 
     const cleanPk = pk.trim().startsWith("0x") ? pk.trim() : `0x${pk.trim()}`;
-    const rpcProvider = new ethers.JsonRpcProvider(botConfig.polygonRpcUrl);
-    const wallet = new ethers.Wallet(cleanPk, rpcProvider);
+    // Provider olmadan wallet oluştur (gas price sorgusu yapılmasını kesmek için)
+    const wallet = new ethers.Wallet(cleanPk);
 
     if (!botConfig.contractAddress || botConfig.contractAddress === "0x0000000000000000000000000000000000000000") {
       status = "FAILED";
@@ -974,7 +967,9 @@ async function triggerAutonomousTx(scan: any) {
       "function executeMultiFlashLoan(address tradeAsset, uint256 tradeAmount, address gasAsset, uint256 gasAmount) external"
     ];
     // Signer olarak wallet kullan (provider bypass - gas station API'sinden kaçmak için)
-    const contract = new ethers.Contract(botConfig.contractAddress, contractAbi, wallet);
+    const rpcProvider = new ethers.JsonRpcProvider(botConfig.polygonRpcUrl);
+    const walletWithProvider = wallet.connect(rpcProvider);
+    const contract = new ethers.Contract(botConfig.contractAddress, contractAbi, walletWithProvider);
 
     const USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
     const WPOL_ADDRESS = "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270";
@@ -982,8 +977,8 @@ async function triggerAutonomousTx(scan: any) {
     const tradeAmountWei = ethers.parseUnits(botConfig.borrowAmountUsd.toString(), 6);
     const gasAmountWei = ethers.parseUnits(borrowedGasPol.toString(), 18);
 
-    // Gas price doğrudan manuel fallback değeri (API çağrısını kesmek için)
-    let effectiveGasPrice = 74;
+    // Gas price sabit değeri kullan (Polygon gas station API tamamen bypass)
+    let effectiveGasPrice = 50;
 
     notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (Gas: ${effectiveGasPrice} Gwei)... Ağ onayı bekleniyor.`;
     status = "PENDING";
