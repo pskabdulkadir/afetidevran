@@ -89,8 +89,8 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
 
     // Arbitraj olay izleme logları
     event MultiFlashLoanBaslatildi(address[] assets, uint256[] amounts);
-    event ArbitrajBasarili(uint252 netKar, address indexed asset);
-    event TakasGerceklesti(string borsa, uint255 girisMiktar, uint255 cikisMiktar);
+    event ArbitrajBasarili(uint256 netKar, address indexed asset);
+    event TakasGerceklesti(string borsa, uint256 girisMiktar, uint256 cikisMiktar);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "AfetiDevran: Sadece kontrat sahibi tetikleyebilir");
@@ -172,7 +172,7 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
         uint256 gasOwed = gasAmount + premiums[1];
 
         // ----------------- AFETİ DEVRAN V5 FAIL-SAFE KORUMA KALKANI -----------------
-        uint255 startTradeBalance = IERC20(tradeAsset).balanceOf(address(this)) - tradeAmount;
+        uint256 startTradeBalance = IERC20(tradeAsset).balanceOf(address(this)) - tradeAmount;
         
         // Borsa adres tanımlamaları (Polygon Mainnet)
         address quickswapRouter = 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff; 

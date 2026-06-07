@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Wallet, ShieldAlert, TrendingUp, ArrowDownRight, Copy, Check, Info, PiggyBank, Receipt, Coins } from "lucide-react";
+import { Wallet, ShieldAlert, TrendingUp, ArrowDownRight, Copy, Check, Info, PiggyBank, Receipt, Coins, Rocket } from "lucide-react";
 import { WalletState } from "../types";
 
 interface WalletPanelProps {
@@ -188,6 +188,31 @@ export default function WalletPanel({ wallet }: WalletPanelProps) {
           <p>
             Her arbitraj işleminde, gas bedeli de havuzdan POL olarak borç çekilir. Akıllı kontrat takası gerçekleştirip USDC kârı çıkardığında, kârın bir kısmı ile Aave'ye olan POL borcu kapatılır. Eğer kâr yoksa, işlem <strong>revert</strong> edilir. Revert durumunda ne borç gerçekleşir ne de cüzdandan gas harcanır. Abdulkadir'in POL kasası %100 güvence altındadır.
           </p>
+        </div>
+
+        {/* Smart Contract Deploy Butonu */}
+        <div className="bg-gradient-to-br from-yellow-500/10 to-amber-500/5 border border-yellow-500/20 rounded-lg p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Rocket className="w-4 h-4 text-yellow-500" />
+            <h4 className="text-xs font-bold text-yellow-600 uppercase tracking-wide">Akıllı Kontrat Canlıya Al</h4>
+          </div>
+          <p className="text-[10px] text-slate-400 leading-relaxed">
+            AfetiDevranArbitrage kontratı henüz Polygon Mainnet'te deploy edilmemiş. Aşağıdaki butonla şimdi canlıya alabilirsiniz. Remix IDE'de otomatik olarak açılacak.
+          </p>
+          <a
+            href="https://remix.ethereum.org/?#gist=&optimize=true&runs=200&evmVersion=null&version=soljson-v0.8.20+commit.a1b79de6.js"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block w-full bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-extrabold text-sm py-2.5 rounded-lg transition duration-150 text-center active:scale-95 cursor-pointer"
+          >
+            🚀 Remix IDE ile Deploy Et
+          </a>
+          <div className="bg-slate-950/50 border border-slate-800 rounded p-2.5 text-[9px] text-slate-400 space-y-1 font-mono">
+            <p><strong className="text-slate-300">Adım 1:</strong> Remix IDE açılacak</p>
+            <p><strong className="text-slate-300">Adım 2:</strong> Contracts sekmesinden dosya yapıştır</p>
+            <p><strong className="text-slate-300">Adım 3:</strong> MetaMask ile Polygon'a deploy et</p>
+            <p><strong className="text-slate-300">Adım 4:</strong> Kontrat adresini .env dosyasına ekle</p>
+          </div>
         </div>
 
       </div>

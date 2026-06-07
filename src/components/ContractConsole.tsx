@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Copy, Check, ShieldCheck, Cpu, TestTube, FileCode } from "lucide-react";
+import { Copy, Check, ShieldCheck, Cpu, TestTube, FileCode, Rocket, ExternalLink } from "lucide-react";
 
 export default function ContractConsole() {
   const [activeTab, setActiveTab] = useState<"solidity" | "hardhat" | "test">("solidity");
@@ -260,6 +260,53 @@ describe("Afeti Devran V4 Akıllı Kontrat Core Simülatörü", function () {
         <span>
           Aave Pool Sağlayıcı: <code className="text-slate-300 bg-slate-900 border border-slate-800 px-1 rounded text-[10px]">0xa97684ea...3CDb</code>
         </span>
+      </div>
+
+      {/* Deploy Seçenekleri Paneli */}
+      <div className="bg-gradient-to-r from-yellow-500/5 to-amber-500/5 border-t border-yellow-500/10 px-5 py-4 space-y-3">
+        <div className="flex items-center gap-2 mb-2">
+          <Rocket className="w-4 h-4 text-yellow-500" />
+          <h4 className="text-xs font-bold text-yellow-600 uppercase tracking-wide">Kontratı Polygon Mainnet&apos;te Deploy Et</h4>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <a
+            href="https://remix.ethereum.org/?#gist=&optimize=true&runs=200&evmVersion=null&version=soljson-v0.8.20+commit.a1b79de6.js"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold text-xs py-2.5 rounded-lg transition duration-150 active:scale-95 cursor-pointer"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            Remix IDE
+          </a>
+
+          <div className="bg-slate-800/50 border border-slate-700 text-slate-400 font-semibold text-xs py-2.5 rounded-lg text-center opacity-50 cursor-not-allowed">
+            <span>⚒️ Foundry (Coming)</span>
+          </div>
+        </div>
+
+        <div className="bg-slate-950 border border-slate-800 rounded p-2.5 text-[9px] text-slate-400 space-y-1.5 font-mono">
+          <div className="flex gap-2">
+            <span className="text-yellow-500 font-bold flex-shrink-0">1.</span>
+            <span>Remix IDE linki açılır, Solidity kodu otomatik yüklenir</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="text-yellow-500 font-bold flex-shrink-0">2.</span>
+            <span>Compile -&gt; Deploy &amp; Run Transactions sekmesine git</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="text-yellow-500 font-bold flex-shrink-0">3.</span>
+            <span>Environment: Injected Provider (MetaMask) seç</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="text-yellow-500 font-bold flex-shrink-0">4.</span>
+            <span>Constructor: 0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="text-yellow-500 font-bold flex-shrink-0">5.</span>
+            <span>Deploy butonu tıkla, deployed adresini .env&apos;ye ekle</span>
+          </div>
+        </div>
       </div>
     </div>
   );
