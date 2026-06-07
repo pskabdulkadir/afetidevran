@@ -278,6 +278,17 @@ async function updateTokenPrices() {
 // Polygon ağındaki kullanılabilir çoklu havuz ve çapraz pariteler
 const tokenPairs = [
   {
+    id: "pol-usdc-sushi",
+    name: "POL Hızlı Rota (POL -> USDC -> POL)",
+    symbolA: "POL",
+    symbolB: "USDC",
+    routeType: "Flaş Arbitraj (QuickSwap -> SushiSwap)",
+    addressA: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", // WPOL
+    addressB: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC
+    decimalsA: 18,
+    decimalsB: 6
+  },
+  {
     id: "usdc-weth-sushi",
     name: "Dinamik Zincir (USDC -> WETH -> USDC)",
     symbolA: "USDC",
@@ -563,7 +574,20 @@ async function generateRandomScan() {
   let quickSwapPrice = 0;
   let sushiSwapPrice = 0;
 
-  if (pairId === "usdc-weth-sushi") {
+  if (pairId === "pol-usdc-sushi") {
+    // POL (18 decimals) -> USDC (6 decimals)
+    const tokenIn = "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270"; // WPOL
+    const tokenOut = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"; // USDC
+    
+    // QuickSwap ve SushiSwap üzerinden canlı on-chain getAmountsOut sorgusu
+    const [qPrice, sPrice] = await Promise.all([
+      fetchOnChainDexPrice(DEX_ADDRESSES.QUICKSWAP_ROUTER, tokenIn, tokenOut, 18, 6, pricesUsd.pol),
+      fetchOnChainDexPrice(DEX_ADDRESSES.SUSHISWAP_ROUTER, tokenIn, tokenOut, 18, 6, pricesUsd.pol * 1.0003)
+    ]);
+    
+    quickSwapPrice = qPrice;
+    sushiSwapPrice = sPrice;
+  } else if (pairId === "usdc-weth-sushi") {
     // WETH (18 decimals) -> USDC (6 decimals)
     const tokenIn = "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619";
     const tokenOut = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
