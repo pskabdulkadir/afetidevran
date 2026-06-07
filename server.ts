@@ -512,14 +512,8 @@ async function updateEthersBalances() {
         const tempProvider = new ethers.JsonRpcProvider(botConfig.polygonRpcUrl || rpcPool[0], 137, { staticNetwork: true });
         const blockNum = await runWithTimeout(tempProvider.getBlockNumber(), 1500);
         currentBlock = blockNum;
-        try {
-          const feeData = await runWithTimeout(tempProvider.getFeeData(), 1500);
-          if (feeData && feeData.gasPrice) {
-            currentGasPriceGwei = Math.round(parseFloat(ethers.formatUnits(feeData.gasPrice, "gwei")));
-          }
-        } catch (gasErr) {
-          console.log(`[FeeData Fallback] Gas verisi geçici olarak alınamadı, eski değer kullanılıyor: ${currentGasPriceGwei} Gwei`);
-        }
+        // Gas price doğrudan manuel fallback değeri (API çağrısını kesmek için)
+        currentGasPriceGwei = 74;
       } catch (err) {
         // Sessiz hata
       }
@@ -554,18 +548,8 @@ async function updateEthersBalances() {
         const blockNum = await runWithTimeout(provider.getBlockNumber(), 1500);
         currentBlock = blockNum;
 
-        // Canlı Gas Fiyatı (Gwei) Sorgula
-        try {
-          const feeData = await runWithTimeout(provider.getFeeData(), 2000);
-          if (feeData && feeData.gasPrice) {
-            const newGasPrice = Math.round(parseFloat(ethers.formatUnits(feeData.gasPrice, "gwei")));
-            if (newGasPrice > 0 && newGasPrice < 1000) {
-              currentGasPriceGwei = newGasPrice;
-            }
-          }
-        } catch (gasErr) {
-          console.log(`[Gas Station Fallback] Dinamik gas fiyatı alınamadı, son bilinen değer kullanılıyor: ${currentGasPriceGwei} Gwei`);
-        }
+        // Gas fiyatı doğrudan manuel değer (API çağrısını kesmek için)
+        currentGasPriceGwei = 74;
 
         // 1. Native POL bakiyesini sorgula (Zaman aşımı korumalı)
         const polWei = await runWithTimeout(provider.getBalance(address), 1500);
@@ -998,21 +982,8 @@ async function triggerAutonomousTx(scan: any) {
     const tradeAmountWei = ethers.parseUnits(botConfig.borrowAmountUsd.toString(), 6);
     const gasAmountWei = ethers.parseUnits(borrowedGasPol.toString(), 18);
 
-    // Gas price'ı RPC'den doğrudan al (gas station API'sini bypass et)
-    let effectiveGasPrice = currentGasPriceGwei;
-    try {
-      const gasPrice = await rpcProvider.getGasPrice();
-      const gasPriceGwei = Math.round(parseFloat(ethers.formatUnits(gasPrice, "gwei")));
-      if (gasPriceGwei > 0 && gasPriceGwei < 1000) {
-        effectiveGasPrice = gasPriceGwei;
-      }
-    } catch (gasErr) {
-      console.log(`[Gas Price Fallback] RPC gas price çekilemedi, cache kullanılıyor: ${effectiveGasPrice} Gwei`);
-    }
-
-    if (!effectiveGasPrice || effectiveGasPrice <= 0) {
-      effectiveGasPrice = 74; // Polygon average
-    }
+    // Gas price doğrudan manuel fallback değeri (API çağrısını kesmek için)
+    let effectiveGasPrice = 74;
 
     notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (Gas: ${effectiveGasPrice} Gwei)... Ağ onayı bekleniyor.`;
     status = "PENDING";
