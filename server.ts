@@ -905,17 +905,23 @@ async function generateRandomScan() {
   }
 
   // DEBUG: Execute tetikleme koşullarını yazdır
-  console.log(`[EXECUTE_CHECK] ${newScan.tokenPairName} | NetProfit: $${newScan.netProfitUsd} | isProfitable: ${isNetProfitable} | autoExec: ${botConfig.automaticExecution} | isRunning: ${botConfig.isRunning}`);
+  const walletPolStatus = walletState.pol >= 0.5 ? "OK" : "INSUFFICIENT";
+  console.log(`[EXECUTE_CHECK] ${newScan.tokenPairName} | NetProfit: $${newScan.netProfitUsd} | Profitable: ${isNetProfitable} | AutoExec: ${botConfig.automaticExecution} | Running: ${botConfig.isRunning} | POL: ${walletState.pol}(${walletPolStatus}) | ContractOK: ${botConfig.contractAddress !== "0x0000000000000000000000000000000000000000"}`);
 
   // Otonom Tetikleme modu aktifse ve işlem karlı ise blockchain akışını başlat (Gerçek Web3 TX'leri)
   if (isNetProfitable && botConfig.automaticExecution && botConfig.isRunning) {
-    console.log(`[EXECUTE_TRIGGER] Kârlı fırsat tetikleniyor: ${newScan.tokenPairName}`);
-    triggerAutonomousTx(newScan).catch((err) => {
-      console.error("[Autonomous TX Error]", err.message);
-    });
+    if (walletState.pol >= 0.5 && botConfig.contractAddress !== "0x0000000000000000000000000000000000000000") {
+      console.log(`[EXECUTE_TRIGGER] ✅ Kârlı fırsat tetikleniyor: ${newScan.tokenPairName}`);
+      triggerAutonomousTx(newScan).catch((err) => {
+        console.error("[Autonomous TX Error]", err.message);
+      });
+    } else {
+      console.warn(`[EXECUTE_BLOCKED] POL yetarli: ${walletState.pol >= 0.5} | Contract geçerli: ${botConfig.contractAddress !== "0x0000000000000000000000000000000000000000"}`);
+    }
   } else {
-    if (!isNetProfitable) console.log(`[EXECUTE_SKIP] Yetersiz kârlılık (${newScan.netProfitUsd} <= 0)`);
-    if (!botConfig.automaticExecution) console.log(`[EXECUTE_SKIP] otomatik execution OFF`);
+    if (!isNetProfitable) console.log(`[EXECUTE_SKIP] Yetersiz kârlılık ($${newScan.netProfitUsd} <= 0)`);
+    if (!botConfig.automaticExecution) console.log(`[EXECUTE_SKIP] Otomatik execution KAPAL`);
+    if (!botConfig.isRunning) console.log(`[EXECUTE_SKIP] Sistem DURMALI`);
   }
 }
 
@@ -951,46 +957,16 @@ async function triggerAutonomousTx(scan: any) {
     // Provider olmadan wallet oluştur (gas price sorgusu yapılmasını kesmek için)
     const wallet = new ethers.Wallet(cleanPk);
 
-    // GÜVENLİK KONTROLÜ: CÜZDAN POL BAKIYESI
-    console.log(`[EXECUTE_LOG] Fırsat algılandı (${scan.tokenPairName}). Cüzdan POL bakiyesi kontrol ediliyor: ${walletState.pol} POL`);
-    const minPolRequired = 0.5;
-    if (walletState.pol < minPolRequired) {
-      status = "FAILED";
-      notes = `[EXECUTE_ERROR] Yetersiz cüzdan POL bakiyesi (${walletState.pol} POL < ${minPolRequired} POL gerekli). İşlem iptal edildi.`;
-      console.warn(notes);
-      executionLogs.unshift({
-        id: txId,
-        timestamp: new Date().toISOString(),
-        tokenPairId: scan.tokenPairId,
-        tokenPairName: scan.tokenPairName,
-        status,
-        borrowedAmountUsd: botConfig.borrowAmountUsd,
-        gasBorrowedPol: borrowedGasPol,
-        gasCostUsd: scan.gasCostUsd,
-        grossProfitUsd: scan.grossProfitUsd,
-        netProfitUsd: 0,
-        notes
-      });
-      return;
-    }
+    // AAVE FLASH LOAN GAS KAYNAĞINI KULLAN - POL KONTROL OLMADAN DEVAM ET
+    console.log(`[EXECUTE_LOG] Fırsat algılandı (${scan.tokenPairName}). Aave flash loan gas kaynağı kullanılacak. Cüzdan POL: ${walletState.pol}`);
 
     if (!botConfig.contractAddress || botConfig.contractAddress === "0x0000000000000000000000000000000000000000") {
-      status = "FAILED";
-      notes = `[KONTRAT HATASI] CONTRACT_ADDRESS tanımlı değil. Render Dashboard Environment kısmına ekle: CONTRACT_ADDRESS=0x236A513F0a834a703bEd350Ceed8751CA4BFAb37`;
-      executionLogs.unshift({
-        id: txId,
-        timestamp: new Date().toISOString(),
-        tokenPairId: scan.tokenPairId,
-        tokenPairName: scan.tokenPairName,
-        status,
-        borrowedAmountUsd: botConfig.borrowAmountUsd,
-        gasBorrowedPol: borrowedGasPol,
-        gasCostUsd: scan.gasCostUsd,
-        grossProfitUsd: scan.grossProfitUsd,
-        netProfitUsd: 0,
-        notes
-      });
-      return;
+      console.warn(`[WARNING] CONTRACT_ADDRESS geçerli değil (dummy). Render Dashboard Environment: CONTRACT_ADDRESS=0x...`);
+      notes = `[KONTRAT UYARISI] Dummy kontrat adresi. Deploy edildikten sonra real işlem başlayacak.`;
+      status = "PENDING";
+      // Continue with mock execution for testing
+    } else {
+      console.log(`[CONTRACT_OK] Geçerli kontrat adresi: ${botConfig.contractAddress}`);
     }
 
     const contractAbi = [
