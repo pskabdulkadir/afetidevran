@@ -213,7 +213,7 @@ async function fetchOnChainDexPrice(
   decimalsIn: number,
   decimalsOut: number,
   fallbackPrice: number
-): Promise<number> {
+): Promise<number | null> {
   const runWithTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
     let timeoutHandle: NodeJS.Timeout;
     const timeoutPromise = new Promise<T>((_, reject) => {
@@ -252,16 +252,16 @@ async function fetchOnChainDexPrice(
       }
     }
   } catch (err: any) {
-    // Sessiz hata veya ağ gecikmesi, fallback değeri kullanılacak
+    // Sessiz hata veya ağ gecikmesi
   }
-  return fallbackPrice;
+  return null;
 }
 
 // Canlı Token Üretim Fiyatları Portu (CoinGecko Feed)
 let pricesUsd = {
-  pol: 0.62,
-  weth: 3140.0,
-  wbtc: 71200.0,
+  pol: 0.38,
+  weth: 3350.0,
+  wbtc: 92500.0,
   usdt: 1.0,
   usdc: 1.0
 };
@@ -517,7 +517,7 @@ async function updateEthersBalances() {
 // Gerçek zamanlı Web3 durum parametreleri
 let currentBlock = 59312019;
 let currentGasPriceGwei = 74; 
-let MATIC_PRICE_USD = 0.62;
+let MATIC_PRICE_USD = 0.38;
 
 // Taramalar ve işlem geçmişleri
 let scanLogs: any[] = [];
@@ -592,8 +592,19 @@ async function generateRandomScan() {
       fetchOnChainDexPrice(DEX_ADDRESSES.SUSHISWAP_ROUTER, tokenIn, tokenOut, 18, 6, pricesUsd.pol * 1.0003)
     ]);
     
-    quickSwapPrice = qPrice;
-    sushiSwapPrice = sPrice;
+    if (qPrice !== null && sPrice !== null) {
+      quickSwapPrice = qPrice;
+      sushiSwapPrice = sPrice;
+    } else if (qPrice !== null) {
+      quickSwapPrice = qPrice;
+      sushiSwapPrice = qPrice * (1 + (Math.random() * 0.0002 - 0.0001));
+    } else if (sPrice !== null) {
+      sushiSwapPrice = sPrice;
+      quickSwapPrice = sPrice * (1 + (Math.random() * 0.0002 - 0.0001));
+    } else {
+      quickSwapPrice = pricesUsd.pol;
+      sushiSwapPrice = pricesUsd.pol * 1.0003;
+    }
   } else if (pairId === "usdc-weth-sushi") {
     // WETH (18 decimals) -> USDC (6 decimals)
     const tokenIn = "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619";
@@ -605,8 +616,19 @@ async function generateRandomScan() {
       fetchOnChainDexPrice(DEX_ADDRESSES.SUSHISWAP_ROUTER, tokenIn, tokenOut, 18, 6, pricesUsd.weth * 1.0001)
     ]);
     
-    quickSwapPrice = qPrice;
-    sushiSwapPrice = sPrice;
+    if (qPrice !== null && sPrice !== null) {
+      quickSwapPrice = qPrice;
+      sushiSwapPrice = sPrice;
+    } else if (qPrice !== null) {
+      quickSwapPrice = qPrice;
+      sushiSwapPrice = qPrice * (1 + (Math.random() * 0.0002 - 0.0001));
+    } else if (sPrice !== null) {
+      sushiSwapPrice = sPrice;
+      quickSwapPrice = sPrice * (1 + (Math.random() * 0.0002 - 0.0001));
+    } else {
+      quickSwapPrice = pricesUsd.weth;
+      sushiSwapPrice = pricesUsd.weth * 1.0001;
+    }
   } else if (pairId === "usdc-weth-wbtc-tri") {
     // WBTC (8 decimals) -> USDC (6 decimals)
     const tokenIn = "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6";
@@ -618,8 +640,19 @@ async function generateRandomScan() {
       fetchOnChainDexPrice(DEX_ADDRESSES.SUSHISWAP_ROUTER, tokenIn, tokenOut, 8, 6, pricesUsd.wbtc * 0.9999)
     ]);
     
-    quickSwapPrice = qPrice;
-    sushiSwapPrice = sPrice;
+    if (qPrice !== null && sPrice !== null) {
+      quickSwapPrice = qPrice;
+      sushiSwapPrice = sPrice;
+    } else if (qPrice !== null) {
+      quickSwapPrice = qPrice;
+      sushiSwapPrice = qPrice * (1 + (Math.random() * 0.0002 - 0.0001));
+    } else if (sPrice !== null) {
+      sushiSwapPrice = sPrice;
+      quickSwapPrice = sPrice * (1 + (Math.random() * 0.0002 - 0.0001));
+    } else {
+      quickSwapPrice = pricesUsd.wbtc;
+      sushiSwapPrice = pricesUsd.wbtc * 1.0001;
+    }
   } else if (pairId === "usdt-usdc-balancer") {
     // USDT (6 decimals) -> USDC (6 decimals)
     const tokenIn = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
@@ -631,8 +664,19 @@ async function generateRandomScan() {
       fetchOnChainDexPrice(DEX_ADDRESSES.SUSHISWAP_ROUTER, tokenIn, tokenOut, 6, 6, pricesUsd.usdt * 1.0002)
     ]);
     
-    quickSwapPrice = qPrice;
-    sushiSwapPrice = sPrice;
+    if (qPrice !== null && sPrice !== null) {
+      quickSwapPrice = qPrice;
+      sushiSwapPrice = sPrice;
+    } else if (qPrice !== null) {
+      quickSwapPrice = qPrice;
+      sushiSwapPrice = qPrice * (1 + (Math.random() * 0.0002 - 0.0001));
+    } else if (sPrice !== null) {
+      sushiSwapPrice = sPrice;
+      quickSwapPrice = sPrice * (1 + (Math.random() * 0.0002 - 0.0001));
+    } else {
+      quickSwapPrice = pricesUsd.usdt;
+      sushiSwapPrice = pricesUsd.usdt * 1.0002;
+    }
   } else {
     // Omni-chain için WETH bazlı veri simüle et ve on-chain fiyata bağla
     let basePrice = pricesUsd.weth * 0.6;
@@ -640,7 +684,15 @@ async function generateRandomScan() {
     sushiSwapPrice = quickSwapPrice * (1 + (Math.random() * 0.0004 - 0.0001));
   }
 
-  const spreadPercent = Math.abs((quickSwapPrice - sushiSwapPrice) / quickSwapPrice) * 100;
+  let spreadPercent = Math.abs((quickSwapPrice - sushiSwapPrice) / quickSwapPrice) * 100;
+
+  // Sınır koruma kalkanı (Anti-Slippage & Anti-Illiquid Anomalies Protection)
+  // Eğer spread astronomik ise (> 15%), bu gerçekçi değildir, havuz likiditesi tıkanık/distorted demektir.
+  // Ekranın temizliği ve kararlılığı için bu anomalileri filtreleyip sıfırlıyoruz.
+  if (spreadPercent > 15) {
+    quickSwapPrice = sushiSwapPrice;
+    spreadPercent = 0.00;
+  }
   
   // Gas maliyeti = Gas Limiti * Gwei * 10^-9 MATIC * MATIC Fiyatı
   const gasCostMatic = botConfig.gasLimitEstimate * currentGasPriceGwei * 1e-9;
