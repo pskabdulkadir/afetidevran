@@ -212,7 +212,7 @@ let botConfig = {
   borrowAmountUsd: 250000,  // Başlangıç borç seviyesi: 250,000 USDC
   gasToBorrowPol: 5, // Aave V3'ten ödünç alınacak POL (gas) miktarı
   isRunning: true,
-  automaticExecution: false,
+  automaticExecution: true,
   gasLimitEstimate: 360000,
   mevPrivateRelay: true,
   latencyThresholdMs: 800, // %100 Otonom Resilience tavan ayarı (3000ms yerine 800ms)
@@ -1114,8 +1114,8 @@ app.post("/api/reset", (req, res) => {
     borrowAmountUsd: 250000,
     gasToBorrowPol: 5,
     isRunning: true,
-    automaticExecution: false,
-    gasLimitEstimate: 360000, 
+    automaticExecution: true,
+    gasLimitEstimate: 360000,
     mevPrivateRelay: true,
     latencyThresholdMs: 800,
     omniChainEnabled: false,
