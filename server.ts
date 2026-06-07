@@ -17,7 +17,7 @@ const PORT = Number(process.env.PORT) || 3000;
 
 // Otonom Hata Düzeltici - Çoklu RPC Havuzu (Polygon Mainnet)
 const rpcPool = [
-  "https://polygon-netmain.g.alchemy.com/v2/LtvSE41JtSkNE0P1qgCpB", // Senin Özel Alchemy Hattın En Başta!
+  "https://polygon-mainnet.g.alchemy.com/v2/LtvSE41JtSkNE0P1qgCpB", // Senin Özel Alchemy Hattın En Başta!
   "https://polygon-bor-rpc.publicnode.com", // Son derece güvenilir ve hızlı açık düğüm
   "https://polygon-pokt.nodies.app", // Yüksek eşzamanlı limitli nodies düğümü
   "https://polygon.drpc.org", // Drpc global load-balanced düğümü
@@ -33,7 +33,7 @@ interface RpcStatus {
 }
 
 let rpcStatusList: RpcStatus[] = [
-  { name: "Alchemy Özel Hat", url: "https://polygon-netmain.g.alchemy.com/v2/LtvSE41JtSkNE0P1qgCpB", latencyMs: 15, status: "PRIMARY" },
+  { name: "Alchemy Özel Hat", url: "https://polygon-mainnet.g.alchemy.com/v2/LtvSE41JtSkNE0P1qgCpB", latencyMs: 15, status: "PRIMARY" },
   { name: "PublicNode Bor", url: "https://polygon-bor-rpc.publicnode.com", latencyMs: 45, status: "STABLE" },
   { name: "Nodies Pokt Hub", url: "https://polygon-pokt.nodies.app", latencyMs: 65, status: "STABLE" },
   { name: "dRPC Portal", url: "https://polygon.drpc.org", latencyMs: 80, status: "STABLE" },
@@ -386,7 +386,7 @@ async function updateEthersBalances() {
 
     // Türkiye ve yurtdışı korumalı güncel ve hızlı genel RPC listesi (401/403 fırlatan kısıtlı ağlar elendi)
     const rpcUrlsToTry = [
-      "https://polygon-netmain.g.alchemy.com/v2/LtvSE41JtSkNE0P1qgCpB",
+      "https://polygon-mainnet.g.alchemy.com/v2/LtvSE41JtSkNE0P1qgCpB",
       botConfig.polygonRpcUrl,
       "https://polygon-bor-rpc.publicnode.com",
       "https://polygon-pokt.nodies.app",
