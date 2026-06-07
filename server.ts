@@ -371,9 +371,13 @@ async function updateEthersBalances() {
         const tempProvider = new ethers.JsonRpcProvider(botConfig.polygonRpcUrl || rpcPool[0], 137, { staticNetwork: true });
         const blockNum = await runWithTimeout(tempProvider.getBlockNumber(), 1500);
         currentBlock = blockNum;
-        const feeData = await runWithTimeout(tempProvider.getFeeData(), 1500);
-        if (feeData.gasPrice) {
-          currentGasPriceGwei = Math.round(parseFloat(ethers.formatUnits(feeData.gasPrice, "gwei")));
+        try {
+          const feeData = await runWithTimeout(tempProvider.getFeeData(), 1500);
+          if (feeData && feeData.gasPrice) {
+            currentGasPriceGwei = Math.round(parseFloat(ethers.formatUnits(feeData.gasPrice, "gwei")));
+          }
+        } catch (gasErr) {
+          console.log(`[FeeData Fallback] Gas verisi geçici olarak alınamadı, eski değer kullanılıyor: ${currentGasPriceGwei} Gwei`);
         }
       } catch (err) {
         // Sessiz hata
@@ -410,9 +414,13 @@ async function updateEthersBalances() {
         currentBlock = blockNum;
 
         // Canlı Gas Fiyatı (Gwei) Sorgula
-        const feeData = await runWithTimeout(provider.getFeeData(), 1500);
-        if (feeData.gasPrice) {
-          currentGasPriceGwei = Math.round(parseFloat(ethers.formatUnits(feeData.gasPrice, "gwei")));
+        try {
+          const feeData = await runWithTimeout(provider.getFeeData(), 1500);
+          if (feeData && feeData.gasPrice) {
+            currentGasPriceGwei = Math.round(parseFloat(ethers.formatUnits(feeData.gasPrice, "gwei")));
+          }
+        } catch (gasErr) {
+          console.log(`[Ethers Gas İstasyonu Koruması] Gas istasyonu/fee verisi RPC [${rpcUrl}] üzerinden alınamadı. Son Gwei değeri korunuyor: ${currentGasPriceGwei} Gwei`);
         }
 
         // 1. Native POL bakiyesini sorgula (Zaman aşımı korumalı)
