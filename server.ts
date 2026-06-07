@@ -234,12 +234,19 @@ async function fetchOnChainDexPrice(
     
     // Parse 1 tokenIn
     const amountInWei = ethers.parseUnits("1", decimalsIn);
-    const path = [tokenIn, tokenOut];
+    
+    const WPOL_ADDRESS = "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270";
+    let path = [tokenIn, tokenOut];
+    // Eğer tokenIn veya tokenOut WPOL değilse, derin likidite için WPOL üzerinden rotalı sorguluyoruz
+    if (tokenIn.toLowerCase() !== WPOL_ADDRESS.toLowerCase() && tokenOut.toLowerCase() !== WPOL_ADDRESS.toLowerCase()) {
+      path = [tokenIn, WPOL_ADDRESS, tokenOut];
+    }
     
     const amounts = await runWithTimeout(contract.getAmountsOut(amountInWei, path), 1500);
     
-    if (amounts && amounts.length > 1) {
-      const price = parseFloat(ethers.formatUnits(amounts[1], decimalsOut));
+    if (amounts && amounts.length > 0) {
+      const finalAmount = amounts[amounts.length - 1];
+      const price = parseFloat(ethers.formatUnits(finalAmount, decimalsOut));
       if (price > 0 && price < fallbackPrice * 5 && price > fallbackPrice * 0.2) {
         return price;
       }
