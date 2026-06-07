@@ -1032,6 +1032,12 @@ async function triggerAutonomousTx(scan: any) {
     }
 
   } catch (err: any) {
+    // Gas station API hatasını sessizce yoksay (ethers.js arka plan sorgusu)
+    if (err.message?.includes("gasstation.polygon.technology") || err.message?.includes("gas station")) {
+      console.log(`[Gas Station Filter] Ethers.js arka plan gas sorgusu hatası filtrelendi, işleme devam ediliyor...`);
+      return;
+    }
+
     status = "FAILED";
     notes = `[HATA] ${err.message?.substring(0, 100) || "Bilinmeyen hata"}`;
     console.error(`[Web3 TX Error] ${notes}`, err);
