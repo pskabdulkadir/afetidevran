@@ -221,9 +221,12 @@ let botConfig = {
   mempoolScanningEnabled: false, // Predictive Mempool Scanning (Önleyici Arbitraj)
   contractAddress: process.env.CONTRACT_ADDRESS || "0x0000000000000000000000000000000000000000", // Deployed contract address
   forceExecutionThreshold: parseFloat(process.env.FORCE_EXECUTION_THRESHOLD || "0"), // Force execution threshold (Siber Karargâh modu)
-  skipProfitCheck: process.env.SKIP_PROFIT_CHECK === "TRUE", // Bypass profit validation
+  skipProfitCheck: (process.env.SKIP_PROFIT_CHECK || "").toLowerCase() === "true", // Bypass profit validation
   maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "500000") // Max gas limit override
 };
+
+// Debug: Environment variables check
+console.log(`[BOT_CONFIG_DEBUG] SKIP_PROFIT_CHECK=${process.env.SKIP_PROFIT_CHECK} | skipProfitCheck=${botConfig.skipProfitCheck} | MAX_GAS_THRESHOLD=${process.env.MAX_GAS_THRESHOLD}`);
 
 // Canlı DEX Router adresleri ve getAmountsOut için resmi ABI deklarasyonu
 const DEX_ADDRESSES = {
