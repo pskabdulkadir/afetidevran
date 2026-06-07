@@ -942,11 +942,14 @@ async function triggerAutonomousTx(scan: any) {
   let notes = "";
   const borrowedGasPol = Number((scan.gasCostUsd / MATIC_PRICE_USD).toFixed(1));
 
+  console.log(`[TRIGGER_AUTONOMOUS_TX_START] txId=${txId} | Pair: ${scan.tokenPairName} | NetProfit: $${scan.netProfitUsd}`);
+
   try {
     const pk = process.env.PRIVATE_KEY;
     if (!pk || pk.trim() === "") {
       status = "FAILED";
       notes = `[PRIVATE KEY HATASI] PRIVATE_KEY çevre değişkeni tanımlı değil. Web3 TX'si gönderilemiyor.`;
+      console.error(`[TRIGGER_AUTONOMOUS_TX_ERROR] ${notes}`);
       executionLogs.unshift({
         id: txId,
         timestamp: new Date().toISOString(),
@@ -1085,6 +1088,7 @@ async function triggerAutonomousTx(scan: any) {
   if (executionLogs.length > 50) {
     executionLogs.pop();
   }
+  console.log(`[TRIGGER_TX_COMPLETE] txId=${txId} | Status=${status} | LogCount=${executionLogs.length}`);
 }
 
 // REST endpoints
