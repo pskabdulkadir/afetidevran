@@ -6,8 +6,8 @@ describe("Afeti Devran V4 Akıllı Kontrat Core Simülatörü", function () {
   let owner;
   let addr1;
   
-  // Polygon Mainnet Real Addresses
-  const AAVE_POOL_ADDRESSES_PROVIDER = "0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb";
+  // Polygon Mainnet Real Addresses (Aave V3 PoolAddressesProvider)
+  const AAVE_POOL_ADDRESSES_PROVIDER = "0xa97684ead0e402dC232d5A524153D7B0B733B4E3";
   const USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
 
   beforeEach(async function () {

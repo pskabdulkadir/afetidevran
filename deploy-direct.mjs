@@ -7,7 +7,7 @@ dotenv.config();
 
 const POLYGON_RPC = process.env.POLYGON_ARCHIVE_URL || "https://polygon-rpc.com";
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
-const AAVE_POOL_PROVIDER = "0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb";
+const AAVE_POOL_PROVIDER = "0xa97684ead0e402dC232d5A524153D7B0B733B4E3";
 
 // Read contract bytecode and ABI
 const contractPath = path.join(process.cwd(), "contracts", "AfetiDevranArbitrage.sol");

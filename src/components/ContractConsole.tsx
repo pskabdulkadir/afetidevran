@@ -143,7 +143,7 @@ const { ethers } = require("hardhat");
 
 describe("Afeti Devran V4 Akıllı Kontrat Core Simülatörü", function () {
   let arbitrageContract, owner;
-  const AAVE_POOL_ADDRESSES_PROVIDER = "0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb";
+  const AAVE_POOL_ADDRESSES_PROVIDER = "0xa97684ead0e402dC232d5A524153D7B0B733B4E3";
   const USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
 
   beforeEach(async function () {
@@ -300,7 +300,7 @@ describe("Afeti Devran V4 Akıllı Kontrat Core Simülatörü", function () {
           </div>
           <div className="flex gap-2">
             <span className="text-yellow-500 font-bold flex-shrink-0">4.</span>
-            <span>Constructor: 0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb</span>
+            <span>Constructor: 0xa97684ead0e402dC232d5A524153D7B0B733B4E3</span>
           </div>
           <div className="flex gap-2">
             <span className="text-yellow-500 font-bold flex-shrink-0">5.</span>
