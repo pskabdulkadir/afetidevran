@@ -9,6 +9,7 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Polygon Aave V3 Pool AddressesProvider (placeholder - kontrat deploy sonrası set edilecek)
 const AAVE_POOL_PROVIDER = "0xa97684ead0e402dC232d5A524153D7B0B733B4E3";
 const RPC_URL = process.env.POLYGON_ARCHIVE_URL || "https://polygon-rpc.com";
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
@@ -106,7 +107,8 @@ async function deploy() {
       const factory = new ethers.ContractFactory(abi, bytecode, wallet);
       
       console.log("🚀 Deploy TX'i gönderiliyor...");
-      const contract = await factory.deploy(AAVE_POOL_PROVIDER);
+      // Constructor parameter yok (Aave provider hardcoded)
+      const contract = await factory.deploy();
       
       console.log(`📨 TX Hash: ${contract.deploymentTransaction()?.hash}\n`);
       console.log("⏳ Ağ onayı bekleniyor (bu 30-60 saniye alabilir)...\n");

@@ -1,0 +1,47 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "C:\\Users\\acer\\Desktop\\afetidevran\\afetidevran\\contracts\\AfetiDevranArbitrage.sol": {
+      "lastModificationDate": 1780864618315,
+      "contentHash": "1701c236bd7ddfc48e65f4592acf9fa5",
+      "sourceName": "contracts/AfetiDevranArbitrage.sol",
+      "solcConfig": {
+        "version": "0.8.20",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "AfetiDevranArbitrage",
+        "IERC20",
+        "IFlashLoanReceiver",
+        "IPool",
+        "IPoolAddressesProvider",
+        "IUniswapV2Router02"
+      ]
+    }
+  }
+}

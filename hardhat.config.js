@@ -1,7 +1,9 @@
-require("@nomicfoundation/hardhat-toolbox");
-require("dotenv").config();
+import "@nomicfoundation/hardhat-toolbox";
+import dotenv from "dotenv";
 
-module.exports = {
+dotenv.config();
+
+export default {
   solidity: {
     version: "0.8.20",
     settings: {
@@ -12,12 +14,6 @@ module.exports = {
     }
   },
   networks: {
-    hardhat: {
-      forking: {
-        url: process.env.POLYGON_ARCHIVE_URL || "https://polygon-rpc.com",
-        blockNumber: 56000000
-      }
-    },
     polygon: {
       url: process.env.POLYGON_ARCHIVE_URL || "https://polygon-rpc.com",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []

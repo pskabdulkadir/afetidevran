@@ -1,5 +1,5 @@
 {
-  "_format": "hh3-artifact-1",
+  "_format": "hh-sol-artifact-1",
   "contractName": "IUniswapV2Router02",
   "sourceName": "contracts/AfetiDevranArbitrage.sol",
   "abi": [
@@ -70,8 +70,5 @@
   "bytecode": "0x",
   "deployedBytecode": "0x",
   "linkReferences": {},
-  "deployedLinkReferences": {},
-  "immutableReferences": {},
-  "inputSourceName": "project/contracts/AfetiDevranArbitrage.sol",
-  "buildInfoId": "solc-0_8_20-d0867e62272c77a1b25c23ddffda9607bf9e0018"
+  "deployedLinkReferences": {}
 }

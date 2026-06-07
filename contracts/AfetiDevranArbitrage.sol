@@ -98,13 +98,13 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
     }
 
     /**
-     * @param _addressesProvider Polygon Aave V3 Adres Sağlayıcı adresi.
+     * Polygon Aave V3 Adres Sağlayıcısı otomatik set ediliyor.
      */
-    constructor(address _addressesProvider) {
-        require(_addressesProvider != address(0), "AfetiDevran: Gecersiz saglayici adresi");
+    constructor() {
         owner = msg.sender;
-        ADDRESSES_PROVIDER = IPoolAddressesProvider(_addressesProvider);
-        POOL = IPool(IPoolAddressesProvider(_addressesProvider).getPool());
+        // Polygon Aave V3 Adresleri (deployment sonrası update edilebilir)
+        ADDRESSES_PROVIDER = IPoolAddressesProvider(0xA97684eAd0e402DC232d5a524153D7b0B733B4E3);
+        POOL = IPool(0x794a61358D6845594F94dc1DB02A252b5b4814aD); // Polygon Aave V3 Pool
     }
 
     /**
