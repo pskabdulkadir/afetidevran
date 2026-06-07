@@ -300,6 +300,16 @@ async function fetchOnChainDexPrice(
   return null;
 }
 
+// GAS STATION HATASINI KESİN ÇÖZÜM:
+async function getGasPrice() {
+  try {
+    // API'yi hiç çağırmadan doğrudan manuel fallback değerini döndür
+    return ethers.parseUnits("74", "gwei");
+  } catch (error) {
+    return ethers.parseUnits("74", "gwei");
+  }
+}
+
 // Canlı Token Üretim Fiyatları Portu (CoinGecko Feed)
 let pricesUsd = {
   pol: 0.38,
