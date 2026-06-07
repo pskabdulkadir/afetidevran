@@ -334,9 +334,9 @@ export default function App() {
                     </div>
                     <input
                       type="range"
-                      min="0.2"
-                      max="3.0"
-                      step="0.1"
+                      min="0.00"
+                      max="3.00"
+                      step="0.01"
                       value={customThreshold}
                       onChange={(e) => setCustomThreshold(parseFloat(e.target.value))}
                       onMouseUp={() => handleConfigUpdate({ minSpreadThreshold: customThreshold })}
