@@ -904,11 +904,18 @@ async function generateRandomScan() {
     scanLogs.pop();
   }
 
+  // DEBUG: Execute tetikleme koşullarını yazdır
+  console.log(`[EXECUTE_CHECK] ${newScan.tokenPairName} | NetProfit: $${newScan.netProfitUsd} | isProfitable: ${isNetProfitable} | autoExec: ${botConfig.automaticExecution} | isRunning: ${botConfig.isRunning}`);
+
   // Otonom Tetikleme modu aktifse ve işlem karlı ise blockchain akışını başlat (Gerçek Web3 TX'leri)
   if (isNetProfitable && botConfig.automaticExecution && botConfig.isRunning) {
+    console.log(`[EXECUTE_TRIGGER] Kârlı fırsat tetikleniyor: ${newScan.tokenPairName}`);
     triggerAutonomousTx(newScan).catch((err) => {
       console.error("[Autonomous TX Error]", err.message);
     });
+  } else {
+    if (!isNetProfitable) console.log(`[EXECUTE_SKIP] Yetersiz kârlılık (${newScan.netProfitUsd} <= 0)`);
+    if (!botConfig.automaticExecution) console.log(`[EXECUTE_SKIP] otomatik execution OFF`);
   }
 }
 
@@ -943,6 +950,29 @@ async function triggerAutonomousTx(scan: any) {
     const cleanPk = pk.trim().startsWith("0x") ? pk.trim() : `0x${pk.trim()}`;
     // Provider olmadan wallet oluştur (gas price sorgusu yapılmasını kesmek için)
     const wallet = new ethers.Wallet(cleanPk);
+
+    // GÜVENLİK KONTROLÜ: CÜZDAN POL BAKIYESI
+    console.log(`[EXECUTE_LOG] Fırsat algılandı (${scan.tokenPairName}). Cüzdan POL bakiyesi kontrol ediliyor: ${walletState.pol} POL`);
+    const minPolRequired = 0.5;
+    if (walletState.pol < minPolRequired) {
+      status = "FAILED";
+      notes = `[EXECUTE_ERROR] Yetersiz cüzdan POL bakiyesi (${walletState.pol} POL < ${minPolRequired} POL gerekli). İşlem iptal edildi.`;
+      console.warn(notes);
+      executionLogs.unshift({
+        id: txId,
+        timestamp: new Date().toISOString(),
+        tokenPairId: scan.tokenPairId,
+        tokenPairName: scan.tokenPairName,
+        status,
+        borrowedAmountUsd: botConfig.borrowAmountUsd,
+        gasBorrowedPol: borrowedGasPol,
+        gasCostUsd: scan.gasCostUsd,
+        grossProfitUsd: scan.grossProfitUsd,
+        netProfitUsd: 0,
+        notes
+      });
+      return;
+    }
 
     if (!botConfig.contractAddress || botConfig.contractAddress === "0x0000000000000000000000000000000000000000") {
       status = "FAILED";
