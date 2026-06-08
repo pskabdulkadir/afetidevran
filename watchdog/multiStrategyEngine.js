@@ -1,0 +1,445 @@
+import { ethers } from "ethers";
+import dotenv from "dotenv";
+import express from "express";
+
+dotenv.config();
+
+/**
+ * 🚀 MULTI-STRATEGY ENGINE
+ * Advanced Arbitrage Bot with Multi-Pool Support
+ * 
+ * Features:
+ * ✅ Multi-Pool Scanner (5+ pairs simultaneously)
+ * ✅ Async Parallel Scanning
+ * ✅ Nonce-Safe Transaction Manager
+ * ✅ Dynamic Gas Optimization
+ * ✅ Fault Tolerance
+ * ✅ Queue-based Execution
+ */
+
+class MultiStrategyEngine {
+  constructor() {
+    this.provider = new ethers.JsonRpcProvider(process.env.POLYGON_ARCHIVE_URL);
+    this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider);
+    this.contractAddress = process.env.CONTRACT_ADDRESS;
+
+    // 📊 TARGET PAIRS CONFIGURATION
+    this.targetPairs = [
+      {
+        name: "WETH-USDC",
+        token0: "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619", // WETH
+        token1: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC
+        decimals0: 18,
+        decimals1: 6,
+        active: true,
+      },
+      {
+        name: "MATIC-USDC",
+        token0: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270", // WMATIC
+        token1: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC
+        decimals0: 18,
+        decimals1: 6,
+        active: true,
+      },
+      {
+        name: "LINK-USDC",
+        token0: "0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39", // LINK
+        token1: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC
+        decimals0: 18,
+        decimals1: 6,
+        active: true,
+      },
+      {
+        name: "UNI-USDC",
+        token0: "0xb33EaAd8d922B1083446DC23f610c28dF6b56850", // UNI
+        token1: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC
+        decimals0: 18,
+        decimals1: 6,
+        active: true,
+      },
+      {
+        name: "WBTC-USDC",
+        token0: "0x1bfd67037B42cf73acF2047067bd4303cb8e5b4a", // WBTC
+        token1: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174", // USDC
+        decimals0: 8,
+        decimals1: 6,
+        active: true,
+      },
+    ];
+
+    // 🔄 DEXES
+    this.dexes = [
+      {
+        name: "QuickSwap",
+        router: "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff",
+        fee: 0.0025, // 0.25%
+      },
+      {
+        name: "SushiSwap",
+        router: "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506",
+        fee: 0.003, // 0.3%
+      },
+      {
+        name: "Uniswap V3",
+        router: "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+        fee: 0.0005, // 0.05%
+      },
+    ];
+
+    // 🎯 NONCE MANAGEMENT
+    this.nonceManager = {
+      currentNonce: null,
+      pendingNonce: null,
+      queue: [],
+      isProcessing: false,
+    };
+
+    // 📊 MARKET DATA
+    this.marketData = {
+      pairs: {},
+      spreads: {},
+      lastUpdate: Date.now(),
+      opportunities: [],
+    };
+
+    // 📈 STATS
+    this.stats = {
+      scansTotal: 0,
+      opportunitiesFound: 0,
+      tradesExecuted: 0,
+      totalProfit: 0,
+      startTime: Date.now(),
+    };
+
+    console.log("✅ Multi-Strategy Engine initialized");
+  }
+
+  /**
+   * 🔄 ASYNC PARALLEL SCANNING
+   * Scan all pairs simultaneously
+   */
+  async scanAllPairs() {
+    try {
+      const scanPromises = this.targetPairs
+        .filter(p => p.active)
+        .map(pair => this.scanPair(pair));
+
+      const results = await Promise.allSettled(scanPromises);
+
+      results.forEach((result, idx) => {
+        const pair = this.targetPairs[idx];
+        if (result.status === "fulfilled") {
+          this.marketData.pairs[pair.name] = result.value;
+        } else if (result.status === "rejected") {
+          console.log(`⚠️ ${pair.name}: Scan failed, marking as inactive temporarily`);
+          pair.active = false;
+          setTimeout(() => {
+            pair.active = true;
+          }, 30000); // Re-enable after 30 seconds
+        }
+      });
+
+      this.stats.scansTotal++;
+      this.checkForOpportunities();
+
+      console.log(`📊 Scanned ${this.stats.scansTotal} times | Opportunities: ${this.stats.opportunitiesFound}`);
+    } catch (error) {
+      console.error("❌ Scan error:", error.message);
+    }
+  }
+
+  /**
+   * 🔍 SCAN SINGLE PAIR
+   * Get prices from both DEXes for a pair
+   */
+  async scanPair(pair) {
+    const routerABI = [
+      "function getAmountsOut(uint256 amountIn, address[] memory path) external view returns (uint256[] memory)",
+    ];
+
+    const prices = {};
+
+    // Scan both DEXes for this pair
+    const dexPromises = this.dexes.slice(0, 2).map(async (dex) => {
+      try {
+        const router = new ethers.Contract(
+          dex.router,
+          routerABI,
+          this.provider
+        );
+
+        const amount = ethers.parseUnits("1", pair.decimals0);
+        const path = [pair.token0, pair.token1];
+        const result = await router.getAmountsOut(amount, path);
+
+        return {
+          dex: dex.name,
+          priceOut: Number(result[1]) / Math.pow(10, pair.decimals1),
+        };
+      } catch (error) {
+        return null;
+      }
+    });
+
+    const dexResults = await Promise.allSettled(dexPromises);
+
+    dexResults.forEach((result) => {
+      if (result.status === "fulfilled" && result.value) {
+        prices[result.value.dex] = result.value.priceOut;
+      }
+    });
+
+    if (Object.keys(prices).length >= 2) {
+      const dexArray = Object.entries(prices);
+      const spread = ((dexArray[1][1] - dexArray[0][1]) / dexArray[0][1]) * 100;
+
+      this.marketData.spreads[pair.name] = {
+        spread: spread.toFixed(4),
+        prices,
+        timestamp: Date.now(),
+      };
+
+      return { pair: pair.name, spread, prices };
+    }
+
+    throw new Error(`Could not get prices for ${pair.name}`);
+  }
+
+  /**
+   * 🎯 CHECK FOR OPPORTUNITIES
+   * Identify profitable arbitrage opportunities
+   */
+  checkForOpportunities() {
+    const opportunities = [];
+
+    Object.entries(this.marketData.spreads).forEach(([pairName, data]) => {
+      const spread = parseFloat(data.spread);
+
+      if (Math.abs(spread) > 0.1) {
+        opportunities.push({
+          pair: pairName,
+          spread: spread.toFixed(4),
+          prices: data.prices,
+          profitEstimate: `$${Math.abs(spread * 5).toFixed(2)}`, // 500 USDC * spread%
+          timestamp: new Date().toISOString(),
+        });
+
+        this.stats.opportunitiesFound++;
+      }
+    });
+
+    this.marketData.opportunities = opportunities;
+
+    if (opportunities.length > 0) {
+      console.log(`\n💰 OPPORTUNITIES DETECTED: ${opportunities.length}`);
+      opportunities.forEach(opp => {
+        console.log(`   ${opp.pair}: Spread ${opp.spread}% → ${opp.profitEstimate}`);
+      });
+    }
+  }
+
+  /**
+   * ⛽ DYNAMIC GAS OPTIMIZATION
+   * Get current gas price and optimize
+   */
+  async getOptimizedGasPrice() {
+    try {
+      const feeData = await this.provider.getFeeData();
+      
+      // Use fast gas price
+      const gasPrice = feeData.gasPrice;
+      const maxPriorityFee = feeData.maxPriorityFeePerGas;
+
+      return {
+        gasPrice: gasPrice ? (gasPrice * BigInt(110)) / BigInt(100) : null, // +10% for priority
+        maxPriorityFee: maxPriorityFee || ethers.parseUnits("50", "gwei"),
+        maxFeePerGas: feeData.maxFeePerGas || ethers.parseUnits("300", "gwei"),
+      };
+    } catch (error) {
+      console.log("⚠️ Could not get dynamic gas price, using fallback");
+      return {
+        gasPrice: ethers.parseUnits("100", "gwei"),
+        maxPriorityFee: ethers.parseUnits("50", "gwei"),
+        maxFeePerGas: ethers.parseUnits("200", "gwei"),
+      };
+    }
+  }
+
+  /**
+   * 🔐 NONCE-SAFE TRANSACTION MANAGER
+   * Queue and execute transactions safely
+   */
+  async initializeNonceManager() {
+    try {
+      this.nonceManager.currentNonce = await this.provider.getTransactionCount(
+        this.signer.address
+      );
+      this.nonceManager.pendingNonce = this.nonceManager.currentNonce;
+      console.log(`✅ Nonce Manager initialized (Current: ${this.nonceManager.currentNonce})`);
+    } catch (error) {
+      console.error("❌ Nonce initialization failed:", error.message);
+    }
+  }
+
+  /**
+   * 📤 QUEUE TRANSACTION FOR EXECUTION
+   */
+  queueTransaction(txData) {
+    this.nonceManager.queue.push({
+      ...txData,
+      nonce: this.nonceManager.pendingNonce++,
+      createdAt: Date.now(),
+    });
+
+    if (!this.nonceManager.isProcessing) {
+      this.processTransactionQueue();
+    }
+  }
+
+  /**
+   * 🔄 PROCESS TRANSACTION QUEUE
+   * Execute queued transactions sequentially
+   */
+  async processTransactionQueue() {
+    if (this.nonceManager.isProcessing || this.nonceManager.queue.length === 0) {
+      return;
+    }
+
+    this.nonceManager.isProcessing = true;
+
+    while (this.nonceManager.queue.length > 0) {
+      const txData = this.nonceManager.queue.shift();
+
+      try {
+        const gasConfig = await this.getOptimizedGasPrice();
+
+        const tx = await this.signer.sendTransaction({
+          to: txData.to,
+          data: txData.data,
+          nonce: txData.nonce,
+          ...gasConfig,
+          gasLimit: 800000,
+        });
+
+        console.log(`✅ TX #${txData.nonce} sent: ${tx.hash}`);
+        this.stats.tradesExecuted++;
+
+        // Wait for confirmation
+        const receipt = await tx.wait();
+        console.log(`✅ TX #${txData.nonce} confirmed`);
+      } catch (error) {
+        console.error(`❌ TX #${txData.nonce} failed:`, error.message);
+      }
+
+      // Wait before next transaction
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    this.nonceManager.isProcessing = false;
+  }
+
+  /**
+   * 📊 GENERATE COMPREHENSIVE REPORT
+   */
+  generateReport() {
+    const uptime = (Date.now() - this.stats.startTime) / 1000 / 60; // minutes
+
+    return {
+      mode: "MULTI-STRATEGY ENGINE (Piyasa Kontrol Merkezi)",
+      status: "✅ ACTIVE",
+      uptime: `${uptime.toFixed(1)} minutes`,
+      pairs: {
+        active: this.targetPairs.filter(p => p.active).length,
+        total: this.targetPairs.length,
+        list: this.targetPairs.map(p => ({
+          name: p.name,
+          status: p.active ? "🟢 Active" : "🔴 Inactive",
+          spread: this.marketData.spreads[p.name]?.spread || "N/A",
+        })),
+      },
+      opportunities: this.marketData.opportunities.slice(0, 5),
+      statistics: {
+        totalScans: this.stats.scansTotal,
+        opportunitiesFound: this.stats.opportunitiesFound,
+        tradesExecuted: this.stats.tradesExecuted,
+        totalProfit: `$${this.stats.totalProfit.toFixed(2)}`,
+        scanRate: `${(this.stats.scansTotal / uptime).toFixed(1)} scans/min`,
+      },
+      nonce: {
+        current: this.nonceManager.currentNonce,
+        pending: this.nonceManager.pendingNonce,
+        queued: this.nonceManager.queue.length,
+      },
+    };
+  }
+
+  /**
+   * 🚀 START ENGINE
+   */
+  async start() {
+    console.log("\n=================================================");
+    console.log("🚀 MULTI-STRATEGY ENGINE STARTING");
+    console.log("=================================================\n");
+
+    await this.initializeNonceManager();
+
+    // Scan pairs every 10 seconds (faster than before)
+    setInterval(() => this.scanAllPairs(), 10000);
+
+    // Initial scan
+    await this.scanAllPairs();
+
+    console.log("✅ Engine started - Scanning all pairs...\n");
+  }
+}
+
+// ==========================================
+// INITIALIZE AND START
+// ==========================================
+
+const engine = new MultiStrategyEngine();
+
+// Start the engine
+engine.start();
+
+// ==========================================
+// EXPRESS DASHBOARD
+// ==========================================
+
+const app = express();
+
+app.get("/report", (req, res) => {
+  res.json(engine.generateReport());
+});
+
+app.get("/health", (req, res) => {
+  res.json({
+    status: "Multi-Strategy Engine Running ✅",
+    pairsScanned: engine.targetPairs.filter(p => p.active).length,
+    opportunitiesDetected: engine.stats.opportunitiesFound,
+    uptime: `${((Date.now() - engine.stats.startTime) / 1000 / 60).toFixed(1)} minutes`,
+  });
+});
+
+app.get("/pairs", (req, res) => {
+  res.json(engine.targetPairs.map(p => ({
+    name: p.name,
+    status: p.active ? "✅ Active" : "⚠️ Inactive",
+    spread: engine.marketData.spreads[p.name]?.spread || "N/A",
+    prices: engine.marketData.spreads[p.name]?.prices || {},
+  })));
+});
+
+app.get("/opportunities", (req, res) => {
+  res.json(engine.marketData.opportunities);
+});
+
+const PORT = process.env.PORT || 3003;
+app.listen(PORT, () => {
+  console.log(`\n📊 Dashboard: http://localhost:${PORT}/report`);
+  console.log(`💚 Health: http://localhost:${PORT}/health`);
+  console.log(`📈 Pairs: http://localhost:${PORT}/pairs`);
+  console.log(`💰 Opportunities: http://localhost:${PORT}/opportunities\n`);
+});
+
+export default MultiStrategyEngine;
