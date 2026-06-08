@@ -1049,30 +1049,14 @@ async function triggerAutonomousTx(scan: any) {
     const tradeAmountWei = ethers.parseUnits(botConfig.borrowAmountUsd.toString(), 6);
     const gasAmountWei = ethers.parseUnits(borrowedGasPol.toString(), 18);
 
-    // EIP-1559 Gas Pricing: Dinamik base fee + priority fee
-    let effectiveGasPrice = currentGasPriceGwei;
+    // EIP-1559 Gas Pricing: Doğrudan 150 Gwei + 50 Gwei priority fee (gas station bypass)
     let txOptions: any = {
       gasLimit: botConfig.gasLimitEstimate,
+      maxFeePerGas: ethers.parseUnits("250", "gwei"), // Max 250 Gwei cap
+      maxPriorityFeePerGas: ethers.parseUnits("50", "gwei"), // Miner tip: 50 Gwei (aggressive)
     };
 
-    // EIP-1559 desteği varsa (Polygon destekliyor), maxFeePerGas ve maxPriorityFeePerGas kullan
-    try {
-      const feeData = await rpcProvider.getFeeData();
-      if (feeData?.maxFeePerGas && feeData?.maxPriorityFeePerGas) {
-        // EIP-1559 mode
-        txOptions.maxFeePerGas = ethers.parseUnits(Math.min(currentGasPriceGwei * 1.15, 250).toString(), "gwei");
-        txOptions.maxPriorityFeePerGas = ethers.parseUnits("50", "gwei"); // 50 Gwei miner tip
-        notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (EIP-1559 Mode: Max Fee: ${currentGasPriceGwei.toFixed(2)} Gwei)... Ağ onayı bekleniyor.`;
-      } else {
-        // Legacy mode fallback
-        txOptions.gasPrice = ethers.parseUnits(effectiveGasPrice.toString(), "gwei");
-        notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (Legacy Mode: Gas Price: ${effectiveGasPrice} Gwei)... Ağ onayı bekleniyor.`;
-      }
-    } catch (feeErr) {
-      // Fallback: Legacy gasPrice
-      txOptions.gasPrice = ethers.parseUnits(effectiveGasPrice.toString(), "gwei");
-      notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (Fallback: Gas Price: ${effectiveGasPrice} Gwei)... Ağ onayı bekleniyor.`;
-    }
+    notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (EIP-1559 Mode: Max Fee: 250 Gwei, Priority: 50 Gwei)... Ağ onayı bekleniyor.`;
 
     status = "PENDING";
 
