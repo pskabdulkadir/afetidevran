@@ -17,6 +17,11 @@ export default {
     polygon: {
       url: process.env.POLYGON_ARCHIVE_URL || "https://polygon-rpc.com",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : []
+    },
+    mumbai: {
+      url: "https://rpc-mumbai.maticvigil.com",
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      chainId: 80001
     }
   }
 };
