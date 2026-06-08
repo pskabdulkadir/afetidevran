@@ -38,7 +38,16 @@ class MultiStrategyEngine {
       lastError: null,
       failureCount: 0,
       maxFailures: 3,
+      totalFailures: 0, // Circuit breaker için
+      isInSafeMode: false,
     };
+
+    // RPC Latency tracking
+    this.rpcLatency = {};
+    this.initializeRPCLatencies();
+
+    // Recovery loop
+    this.setupRecoveryLoop();
 
     // 📊 TARGET PAIRS CONFIGURATION
     this.targetPairs = [
@@ -133,7 +142,7 @@ class MultiStrategyEngine {
 
   /**
    * 🔄 ASYNC PARALLEL SCANNING
-   * Scan all pairs simultaneously + RPC health check
+   * Scan all pairs simultaneously + RPC health check + Safe Mode
    */
   async scanAllPairs() {
     try {
@@ -141,7 +150,11 @@ class MultiStrategyEngine {
       const isRpcHealthy = await this.checkRPCHealth();
 
       if (!isRpcHealthy && !this.rpcHealth.isConnected) {
-        logger.error(`🚨 RPC DISCONNECTED - Cannot scan pairs. Waiting for reconnection...`);
+        if (this.rpcHealth.isInSafeMode) {
+          logger.warn(`🔴 SAFE MODE - Waiting for RPC recovery...`);
+        } else {
+          logger.error(`🚨 RPC DISCONNECTED - Cannot scan pairs. Waiting for reconnection...`);
+        }
         this.stats.scansTotal++;
         return; // Skip scanning if RPC is down
       }
@@ -331,6 +344,45 @@ class MultiStrategyEngine {
   }
 
   /**
+   * ⚡ INITIALIZE RPC LATENCIES
+   * Measure latency for each RPC on startup
+   */
+  async initializeRPCLatencies() {
+    logger.info("⚡ Measuring RPC latencies...");
+
+    for (const rpcUrl of this.rpcProviders) {
+      try {
+        const start = Date.now();
+        const provider = new ethers.JsonRpcProvider(rpcUrl);
+        await provider.getBlockNumber();
+        const latency = Date.now() - start;
+
+        this.rpcLatency[rpcUrl] = latency;
+        logger.info(`   ${rpcUrl.substring(0, 40)}... → ${latency}ms`);
+      } catch (error) {
+        this.rpcLatency[rpcUrl] = Infinity; // Mark as unavailable
+        logger.warn(`   ${rpcUrl.substring(0, 40)}... → UNAVAILABLE`);
+      }
+    }
+
+    // En hızlısını seç ve primary olarak koy
+    const fastestRpc = Object.entries(this.rpcLatency).sort(
+      ([, a], [, b]) => a - b
+    )[0];
+
+    if (fastestRpc) {
+      const fastestIndex = this.rpcProviders.indexOf(fastestRpc[0]);
+      [this.rpcProviders[0], this.rpcProviders[fastestIndex]] = [
+        this.rpcProviders[fastestIndex],
+        this.rpcProviders[0],
+      ];
+      logger.info(
+        `✅ Fastest RPC selected: ${fastestRpc[0].substring(0, 40)}... (${fastestRpc[1]}ms)`
+      );
+    }
+  }
+
+  /**
    * 🔄 RPC HEALTH CHECK & FAILOVER
    * Switch to backup RPC if primary fails
    */
@@ -372,6 +424,12 @@ class MultiStrategyEngine {
       this.rpcHealth.isConnected = true;
       this.rpcHealth.failureCount = 0;
 
+      // Exit safe mode if we recover
+      if (this.rpcHealth.isInSafeMode) {
+        logger.info("🟢 Exiting SAFE MODE - Connection restored!");
+        this.rpcHealth.isInSafeMode = false;
+      }
+
       return true;
     } catch (error) {
       logger.error(`⚠️ RPC Health Check Failed: ${error.message}`);
@@ -379,15 +437,55 @@ class MultiStrategyEngine {
       this.rpcHealth.isConnected = false;
       this.rpcHealth.lastError = error.message;
       this.rpcHealth.failureCount++;
+      this.rpcHealth.totalFailures++;
 
       // 3 başarısız deneme sonra fallback
       if (this.rpcHealth.failureCount >= this.rpcHealth.maxFailures) {
         logger.error(`🚨 RPC connection lost! Attempting failover...`);
-        return await this.switchToNextRPC();
+        const switchSuccess = await this.switchToNextRPC();
+
+        if (!switchSuccess && this.rpcHealth.totalFailures >= 9) {
+          // Tüm RPC'ler fail (3 RPC × 3 fail = 9)
+          this.activateSafeMode();
+        }
+
+        return switchSuccess;
       }
 
       return false;
     }
+  }
+
+  /**
+   * 🔴 CIRCUIT BREAKER - SAFE MODE
+   * Activate when all RPCs are down
+   */
+  activateSafeMode() {
+    logger.error(`🔴 ALL RPC PROVIDERS DOWN - Entering SAFE MODE`);
+    logger.error(`⏰ Bot will attempt automatic recovery every 30 seconds`);
+
+    this.rpcHealth.isInSafeMode = true;
+    this.marketData.opportunities = []; // Clear opportunities in safe mode
+  }
+
+  /**
+   * 🔄 SETUP RECOVERY LOOP
+   * Automatic recovery attempt when in safe mode
+   */
+  setupRecoveryLoop() {
+    setInterval(async () => {
+      if (this.rpcHealth.isInSafeMode) {
+        logger.warn(`🔄 Safe Mode - Attempting recovery...`);
+
+        const recovered = await this.checkRPCHealth();
+
+        if (recovered) {
+          logger.info(`✅ RECOVERED FROM SAFE MODE!`);
+          this.rpcHealth.isInSafeMode = false;
+          this.rpcHealth.totalFailures = 0;
+        }
+      }
+    }, 30000); // Check every 30 seconds
   }
 
   /**
@@ -476,7 +574,10 @@ class MultiStrategyEngine {
         connected: this.rpcHealth.isConnected,
         currentProvider: this.rpcProviders[this.currentRpcIndex],
         failureCount: this.rpcHealth.failureCount,
+        totalFailures: this.rpcHealth.totalFailures,
         lastError: this.rpcHealth.lastError,
+        safeMode: this.rpcHealth.isInSafeMode,
+        safeModeTip: this.rpcHealth.isInSafeMode ? "Auto-recovery running (30s check interval)" : "Normal operation",
       },
       uptime: `${uptime.toFixed(1)} minutes`,
       pairs: {
