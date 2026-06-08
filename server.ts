@@ -208,7 +208,7 @@ process.on("unhandledRejection", (reason: any) => {
 // Varsayılan Bot Yapılandırması (AFETİ DEVRAN V5 - ÇOKLU VARLIK DESTEKLİ)
 let botConfig = {
   polygonRpcUrl: rpcPool[activeRpcIndex],
-  minSpreadThreshold: 0.8, // %0.8 Varsayılan kârlılık sınırı
+  minSpreadThreshold: 1.5, // %1.5 Varsayılan kârlılık sınırı - Gas maliyetini karşılamak için
   borrowAmountUsd: 250000,  // Başlangıç borç seviyesi: 250,000 USDC
   gasToBorrowPol: 5, // Aave V3'ten ödünç alınacak POL (gas) miktarı
   isRunning: true,
@@ -222,11 +222,12 @@ let botConfig = {
   contractAddress: process.env.CONTRACT_ADDRESS || "0x0000000000000000000000000000000000000000", // Deployed contract address
   forceExecutionThreshold: parseFloat(process.env.FORCE_EXECUTION_THRESHOLD || "0"), // Force execution threshold (Siber Karargâh modu)
   skipProfitCheck: (process.env.SKIP_PROFIT_CHECK || "").toLowerCase() === "true", // Bypass profit validation
-  maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "500000") // Max gas limit override
+  maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "500000"), // Max gas limit override
+  minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.5") // Minimum net profit in USD for execution
 };
 
 // Debug: Environment variables check
-console.log(`[BOT_CONFIG_DEBUG] SKIP_PROFIT_CHECK=${process.env.SKIP_PROFIT_CHECK} | skipProfitCheck=${botConfig.skipProfitCheck} | MAX_GAS_THRESHOLD=${process.env.MAX_GAS_THRESHOLD}`);
+console.log(`[BOT_CONFIG_DEBUG] SKIP_PROFIT_CHECK=${process.env.SKIP_PROFIT_CHECK} | skipProfitCheck=${botConfig.skipProfitCheck} | MAX_GAS_THRESHOLD=${process.env.MAX_GAS_THRESHOLD} | MIN_PROFIT_THRESHOLD=${process.env.MIN_PROFIT_THRESHOLD || "0.5"} | minSpreadThreshold=${botConfig.minSpreadThreshold}%`);
 
 // Canlı DEX Router adresleri ve getAmountsOut için resmi ABI deklarasyonu
 const DEX_ADDRESSES = {
@@ -882,7 +883,10 @@ async function generateRandomScan() {
   const netProfitUsd = parseFloat((grossProfitUsd - gasCostUsd).toFixed(2));
   
   const isSpreadProfitable = effectiveSpreadPercent >= botConfig.minSpreadThreshold;
-  const minProfitForExecution = botConfig.forceExecutionThreshold > 0 ? botConfig.forceExecutionThreshold : 0;
+  // Minimum net kâr: EN AZ gas ücretinin 2 katı, botConfig.minProfitThreshold, veya forceExecutionThreshold
+  const minProfitForExecution = botConfig.forceExecutionThreshold > 0
+    ? botConfig.forceExecutionThreshold
+    : Math.max(gasCostUsd * 2.0, botConfig.minProfitThreshold);
   const isNetProfitable = isSpreadProfitable && netProfitUsd > minProfitForExecution;
 
   // Predictive Mempool scanning etiketi önleme/front-running analizi ekler
@@ -915,13 +919,13 @@ async function generateRandomScan() {
   const walletPolStatus = walletState.pol >= 0.5 ? "OK" : "INSUFFICIENT";
   const skipCheck = botConfig.skipProfitCheck ? "[SKIP_PROFIT_CHECK: AKTIF]" : "";
   const shouldExecute = botConfig.skipProfitCheck || isNetProfitable;
-  console.log(`[EXECUTE_CHECK] ${newScan.tokenPairName} | NetProfit: $${newScan.netProfitUsd} | Profitable: ${isNetProfitable} | AutoExec: ${botConfig.automaticExecution} | Running: ${botConfig.isRunning} | POL: ${walletState.pol}(${walletPolStatus}) | ContractOK: ${botConfig.contractAddress !== "0x0000000000000000000000000000000000000000"} ${skipCheck}`);
+  console.log(`[EXECUTE_CHECK] ${newScan.tokenPairName} | NetProfit: $${newScan.netProfitUsd} | MinRequired: $${minProfitForExecution} | Spread: ${effectiveSpreadPercent}% | MinSpreadThreshold: ${botConfig.minSpreadThreshold}% | Profitable: ${isNetProfitable} | AutoExec: ${botConfig.automaticExecution} | Running: ${botConfig.isRunning} | POL: ${walletState.pol}(${walletPolStatus}) | ContractOK: ${botConfig.contractAddress !== "0x0000000000000000000000000000000000000000"} ${skipCheck}`);
 
   // Otonom Tetikleme modu aktifse ve işlem karlı ise (ya da skipProfitCheck varsa) blockchain akışını başlat
   if (shouldExecute && botConfig.automaticExecution && botConfig.isRunning) {
     if (botConfig.contractAddress !== "0x0000000000000000000000000000000000000000") {
       const triggerReason = botConfig.skipProfitCheck ? "[FORCED]" : "[PROFITABLE]";
-      console.log(`[EXECUTE_TRIGGER] ✅ Fırsat tetikleniyor ${triggerReason}: ${newScan.tokenPairName} | Spread: ${effectiveSpreadPercent}% | Threshold: ${minProfitForExecution}`);
+      console.log(`[EXECUTE_TRIGGER] ✅ Fırsat tetikleniyor ${triggerReason}: ${newScan.tokenPairName} | NetProfit: $${newScan.netProfitUsd} > MinRequired: $${minProfitForExecution} | Spread: ${effectiveSpreadPercent}% | GasCost: $${gasCostUsd}`);
       triggerAutonomousTx(newScan).catch((err) => {
         console.error("[Autonomous TX Error]", err.message);
       });
@@ -929,7 +933,7 @@ async function generateRandomScan() {
       console.warn(`[EXECUTE_BLOCKED] Contract adres geçersiz (0x000...)`);
     }
   } else {
-    if (!shouldExecute) console.log(`[EXECUTE_SKIP] Yetersiz kârlılık ($${newScan.netProfitUsd} < $${minProfitForExecution})`);
+    if (!shouldExecute) console.log(`[EXECUTE_SKIP] Yetersiz kârlılık: $${newScan.netProfitUsd} < $${minProfitForExecution} (MinRequired) | Spread: ${effectiveSpreadPercent}% < ${botConfig.minSpreadThreshold}% (MinSpreadThreshold)`);
     if (!botConfig.automaticExecution) console.log(`[EXECUTE_SKIP] Otomatik execution KAPAL`);
     if (!botConfig.isRunning) console.log(`[EXECUTE_SKIP] Sistem DURMALI`);
   }

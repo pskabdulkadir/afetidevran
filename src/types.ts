@@ -27,7 +27,7 @@ export interface ArbitrageOpportunity {
 
 export interface BotConfig {
   polygonRpcUrl: string;
-  minSpreadThreshold: number; // e.g. 0.8
+  minSpreadThreshold: number; // e.g. 1.5 (minimum spread % for execution)
   borrowAmountUsd: number; // e.g. 250000
   gasToBorrowPol: number; // e.g. 5
   isRunning: boolean;
@@ -40,6 +40,9 @@ export interface BotConfig {
   mempoolScanningEnabled: boolean;
   contractAddress?: string; // Deployed arbitrage contract address
   forceExecutionThreshold?: number; // Force execution threshold (Siber Karargâh mode)
+  skipProfitCheck?: boolean; // Skip profitability checks
+  maxGasThreshold?: number; // Maximum gas limit
+  minProfitThreshold?: number; // Minimum profit threshold in USD
 }
 
 export enum LogStatus {
