@@ -208,7 +208,7 @@ process.on("unhandledRejection", (reason: any) => {
 // Varsayılan Bot Yapılandırması (AFETİ DEVRAN V5 - ÇOKLU VARLIK DESTEKLİ)
 let botConfig = {
   polygonRpcUrl: rpcPool[activeRpcIndex],
-  minSpreadThreshold: 1.0, // %1.0 Varsayılan kârlılık sınırı - Gas maliyetini karşılamak için (MIN_PROFIT_THRESHOLD ile birlikte)
+  minSpreadThreshold: 0.1, // %0.1 Varsayılan kârlılık sınırı - $893+ gibi büyük fırsatları yakalamak için
   borrowAmountUsd: 250000,  // Başlangıç borç seviyesi: 250,000 USDC
   gasToBorrowPol: 5, // Aave V3'ten ödünç alınacak POL (gas) miktarı
   isRunning: true,
@@ -1172,7 +1172,7 @@ app.post("/api/reset", (req, res) => {
   // Reset bot config to initial default parameters
   botConfig = {
     polygonRpcUrl: rpcPool[0],
-    minSpreadThreshold: 1.0,
+    minSpreadThreshold: 0.1,
     borrowAmountUsd: 250000,
     gasToBorrowPol: 5,
     isRunning: true,
