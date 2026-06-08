@@ -936,7 +936,10 @@ async function generateRandomScan() {
   const minProfitForExecution = botConfig.forceExecutionThreshold > 0
     ? botConfig.forceExecutionThreshold
     : Math.max(gasCostUsd * 2.0, botConfig.minProfitThreshold);
-  const isNetProfitable = isSpreadProfitable && netProfitUsd > minProfitForExecution;
+  // EXECUTION LOGIC: Spread OK VEYA Profit çok yüksekse (50x'ten fazla):
+  // - isSpreadProfitable && profit > min => Normal yol (spread + profit kontrolü)
+  // - OR netProfit > $50 => Çok karlı fırsatı yakala (spread dar olsa bile)
+  const isNetProfitable = (isSpreadProfitable && netProfitUsd > minProfitForExecution) || (netProfitUsd > 50);
 
   // Predictive Mempool scanning etiketi önleme/front-running analizi ekler
   let finalRouteType = routeType;
