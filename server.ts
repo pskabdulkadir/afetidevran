@@ -230,7 +230,13 @@ let botConfig = {
 console.log("═════════════════════════════════════════════════════════════════");
 console.log("[AFETI DEVRAN V5] 🤖 BOT KONFIGÜRASYON RAPORU");
 console.log("═════════════════════════════════════════════════════════════════");
-console.log(`[ENV] CONTRACT_ADDRESS: ${botConfig.contractAddress}`);
+
+// CONTRACT_ADDRESS Status
+const contractStatus = botConfig.contractAddress && botConfig.contractAddress !== "0x0000000000000000000000000000000000000000"
+  ? `✅ YÜKLÜ: ${botConfig.contractAddress.slice(0, 10)}...${botConfig.contractAddress.slice(-8)}`
+  : `❌ AYARLANMADI (Dummy address)`;
+console.log(`[SYSTEM] Contract Address: ${contractStatus}`);
+
 console.log(`[ENV] MIN_PROFIT_THRESHOLD: $${botConfig.minProfitThreshold} USD (EIP-1559 dinamik gas ile)`);
 console.log(`[ENV] MAX_GAS_THRESHOLD: ${botConfig.maxGasThreshold} gwei`);
 console.log(`[CONFIG] gasLimitEstimate: ${botConfig.gasLimitEstimate} (flash loan için yüksek)`);
@@ -240,6 +246,7 @@ console.log(`[CONFIG] borrowAmountUsd: $${botConfig.borrowAmountUsd}`);
 console.log(`[CONFIG] automaticExecution: ${botConfig.automaticExecution}`);
 console.log(`[CONFIG] isRunning: ${botConfig.isRunning}`);
 console.log(`[GAS PRICING] Mode: EIP-1559 (Dinamik) + Legacy Fallback (150 Gwei)`);
+console.log(`[GAS PRICING] Fallback Price: ${process.env.GAS_PRICE ? (parseInt(process.env.GAS_PRICE) / 1e9).toFixed(0) + ' Gwei' : '150 Gwei'}`);
 console.log("═════════════════════════════════════════════════════════════════");
 
 // Canlı DEX Router adresleri ve getAmountsOut için resmi ABI deklarasyonu
