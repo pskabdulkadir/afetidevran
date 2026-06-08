@@ -319,7 +319,8 @@ async function fetchOnChainDexPrice(
 }
 
 // KESİN GAS PRICE SABITÎ - POLYGON GAS STATION API'SİNİ TAMAMEN BYPASS ET
-const FIXED_GAS_PRICE = ethers.parseUnits("50", "gwei");
+// Madencilerin işlemi hızlıca seçmesi için 150 Gwei kullanıyoruz
+const FIXED_GAS_PRICE = ethers.parseUnits("150", "gwei");
 
 // Canlı Token Üretim Fiyatları Portu (CoinGecko Feed)
 let pricesUsd = {
@@ -523,8 +524,8 @@ async function updateEthersBalances() {
         const tempProvider = new ethers.JsonRpcProvider(botConfig.polygonRpcUrl || rpcPool[0], 137, { staticNetwork: true });
         const blockNum = await runWithTimeout(tempProvider.getBlockNumber(), 1500);
         currentBlock = blockNum;
-        // Gas price sabit değer (Polygon gas station bypass)
-        currentGasPriceGwei = 50;
+        // Gas price sabit değer - 150 Gwei (işlem hızlandırma)
+        currentGasPriceGwei = 150;
       } catch (err) {
         // Sessiz hata
       }
@@ -559,8 +560,8 @@ async function updateEthersBalances() {
         const blockNum = await runWithTimeout(provider.getBlockNumber(), 1500);
         currentBlock = blockNum;
 
-        // Gas fiyatı sabit değer (Polygon gas station bypass)
-        currentGasPriceGwei = 50;
+        // Gas fiyatı sabit değer - 150 Gwei (işlem hızlandırma)
+        currentGasPriceGwei = 150;
 
         // 1. Native POL bakiyesini sorgula (Zaman aşımı korumalı)
         const polWei = await runWithTimeout(provider.getBalance(address), 1500);
@@ -637,7 +638,7 @@ async function updateEthersBalances() {
 
 // Gerçek zamanlı Web3 durum parametreleri
 let currentBlock = 59312019;
-let currentGasPriceGwei = 50; // Sabit gas price (gas station bypass)
+let currentGasPriceGwei = 150; // Sabit gas price 150 Gwei (Polygon işlem hızlandırma için)
 let MATIC_PRICE_USD = 0.38;
 
 // Taramalar ve işlem geçmişleri
@@ -1011,8 +1012,8 @@ async function triggerAutonomousTx(scan: any) {
     const tradeAmountWei = ethers.parseUnits(botConfig.borrowAmountUsd.toString(), 6);
     const gasAmountWei = ethers.parseUnits(borrowedGasPol.toString(), 18);
 
-    // Gas price sabit değeri kullan (Polygon gas station API tamamen bypass)
-    let effectiveGasPrice = 50;
+    // Gas price - 150 Gwei (madencilerin işlemi hızlıca seçmesi için)
+    let effectiveGasPrice = 150;
 
     notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (Gas: ${effectiveGasPrice} Gwei)... Ağ onayı bekleniyor.`;
     status = "PENDING";
