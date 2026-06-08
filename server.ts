@@ -682,6 +682,10 @@ let MATIC_PRICE_USD = 0.38;
 let scanLogs: any[] = [];
 let executionLogs: any[] = []; // Kara kutu modu için sıfırdan başlasın
 
+// Pending TX Nonce Tracking (Replacement TX Mekanizması)
+let pendingTxMap: Map<number, { txHash?: string; sentAt: number; gasPrice: bigint }> = new Map();
+let walletNonce = 0;
+
 // İlk bakiye okuma işlemini başlat
 updateEthersBalances();
 updateTokenPrices(); // İlk canlı fiyatları CoinGecko'dan aktar
@@ -1080,6 +1084,17 @@ async function triggerAutonomousTx(scan: any) {
     );
 
     txHash = tx.hash;
+
+    // Nonce tracking: Replacement TX mekanizması için
+    const currentNonce = await walletWithProvider.getNonce();
+    walletNonce = currentNonce;
+    pendingTxMap.set(currentNonce - 1, {
+      txHash: txHash,
+      sentAt: Date.now(),
+      gasPrice: ethers.parseUnits("600", "gwei")
+    });
+    console.log(`[NONCE_TRACKING] TX nonce=${currentNonce - 1}, hash=${txHash.slice(0, 10)}..., gasPrice=600 Gwei`);
+
     status = "PENDING";
     const txHashShort = txHash.slice(0, 10);
     notes = `[TX BLOKZİNCİRE GÖNDERILDI] Hash: ${txHashShort}... Ağ onayı bekleniyor...`;
@@ -1223,6 +1238,10 @@ app.post("/api/reset", (req, res) => {
   // Empty logs
   scanLogs = [];
   executionLogs = [];
+
+  // Reset nonce tracking
+  walletNonce = 0;
+  pendingTxMap.clear();
 
   // Reset self healing logs
   selfHealingLogs = [
@@ -1462,7 +1481,7 @@ app.post("/api/simulate-exploit", async (req, res) => {
 // Otonom DEX Tarama ve Execute Döngüsü (Her 5 Saniye)
 setInterval(async () => {
   try {
-    // Pending timeout cleanup: 10+ saniye PENDING kalan işlemleri temizle
+    // Replacement TX Mekanizması: Pending işlemleri 10s sonra daha yüksek gas ile yeniden gönder
     const pendingTimeoutSeconds = parseInt(process.env.PENDING_TIMEOUT_SECONDS || "10", 10);
     const now = Date.now();
     const pendingTxs = executionLogs.filter((log: any) => log.status === "PENDING");
@@ -1470,9 +1489,48 @@ setInterval(async () => {
     for (const tx of pendingTxs) {
       const txAge = now - new Date(tx.timestamp).getTime();
       if (txAge > pendingTimeoutSeconds * 1000) {
-        console.log(`[CLEANUP] Pending işlem iptal edildi (${pendingTimeoutSeconds}s+ timeout): ${tx.id}`);
-        tx.status = "TIMEOUT_CANCELLED";
-        tx.notes = `İşlem ${pendingTimeoutSeconds} saniye sonra otomatik iptal edildi (Cüzdan temizleme)`;
+        console.log(`[REPLACEMENT_TX] Pending işlem timeout (${pendingTimeoutSeconds}s+): ${tx.id}. Daha yüksek gas ile yeniden gönderiliyor...`);
+
+        // Replacement TX mekanizması: Aynı nonce ile 2x gas fiyatı ile yeniden gönder
+        try {
+          const pk = process.env.PRIVATE_KEY;
+          if (pk && pk.trim() !== "") {
+            const cleanPk = pk.trim().startsWith("0x") ? pk.trim() : `0x${pk.trim()}`;
+            const wallet = new ethers.Wallet(cleanPk, new ethers.JsonRpcProvider(botConfig.polygonRpcUrl || rpcPool[0], 137, { staticNetwork: true }));
+
+            // Mevcut nonce'u blockchain'den oku
+            walletNonce = await wallet.getNonce();
+
+            // Pending işlem nonce'u hesapla (execution log'tan)
+            const pendingNonce = walletNonce - 1; // Son gönderilen TX'in nonce'u
+
+            if (pendingTxMap.has(pendingNonce)) {
+              const pendingInfo = pendingTxMap.get(pendingNonce)!;
+
+              // 2x gas fiyatı ile replacement TX oluştur
+              const replacementGasPrice = (pendingInfo.gasPrice * 2n) / 1n;
+
+              // Dummy replacement TX gönder (empty data, wallet'a para gönder)
+              const tx = await wallet.sendTransaction({
+                to: wallet.address, // Kendi cüzdana geri gönder
+                value: 0,
+                nonce: pendingNonce,
+                gasLimit: 21000,
+                gasPrice: replacementGasPrice,
+                data: "0x"
+              });
+
+              console.log(`[REPLACEMENT_TX_SENT] Nonce ${pendingNonce} için replacement TX gönderildi: ${tx.hash} (Gas: ${ethers.formatUnits(replacementGasPrice, 'gwei')} Gwei)`);
+
+              tx.status = "REPLACEMENT_SENT";
+              tx.notes = `${pendingTimeoutSeconds}s timeout sonra replacement TX gönderildi (Gas: ${ethers.formatUnits(replacementGasPrice, 'gwei')} Gwei)`;
+            }
+          }
+        } catch (replErr) {
+          console.error(`[REPLACEMENT_TX_ERROR] Replacement TX başarısız:`, replErr instanceof Error ? replErr.message : replErr);
+          tx.status = "TIMEOUT_CANCELLED";
+          tx.notes = `${pendingTimeoutSeconds}s timeout sonra iptal (Replacement TX başarısız)`;
+        }
       }
     }
 
