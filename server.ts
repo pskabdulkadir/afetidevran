@@ -213,7 +213,7 @@ let botConfig = {
   gasToBorrowPol: 5, // Aave V3'ten ödünç alınacak POL (gas) miktarı
   isRunning: true,
   automaticExecution: true,
-  gasLimitEstimate: 850000,
+  gasLimitEstimate: 500000,
   mevPrivateRelay: true,
   latencyThresholdMs: 800, // %100 Otonom Resilience tavan ayarı (3000ms yerine 800ms)
   omniChainEnabled: false, // Omni-Chain Genişleme Modülü
@@ -222,7 +222,7 @@ let botConfig = {
   contractAddress: process.env.CONTRACT_ADDRESS || "0x0000000000000000000000000000000000000000", // Deployed contract address
   forceExecutionThreshold: parseFloat(process.env.FORCE_EXECUTION_THRESHOLD || "0"), // Force execution threshold (Siber Karargâh modu)
   skipProfitCheck: (process.env.SKIP_PROFIT_CHECK || "").toLowerCase() === "true", // Bypass profit validation
-  maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "850000"), // Max gas limit override
+  maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "500000"), // Max gas limit override
   minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.05") // Env'den oku, fallback $0.05 (render'da set edilebilsin)
 };
 
@@ -1184,7 +1184,7 @@ app.post("/api/reset", (req, res) => {
     gasToBorrowPol: 5,
     isRunning: true,
     automaticExecution: true,
-    gasLimitEstimate: 850000,
+    gasLimitEstimate: 500000,
     mevPrivateRelay: true,
     latencyThresholdMs: 800,
     omniChainEnabled: false,
@@ -1393,7 +1393,7 @@ app.post("/api/siber/command", (req, res) => {
     result.success = true;
     result.message = `Min profit threshold updated to: $${minProfitThreshold}`;
   } else if (command === "SET_MAX_GAS_THRESHOLD") {
-    const maxGasThreshold = params?.maxGasThreshold || 850000;
+    const maxGasThreshold = params?.maxGasThreshold || 500000;
     botConfig.maxGasThreshold = parseFloat(maxGasThreshold);
     console.log(`[SİBER KARARGÂH] SET_MAX_GAS_THRESHOLD: ${maxGasThreshold}`);
     result.success = true;
