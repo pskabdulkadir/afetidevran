@@ -1123,37 +1123,8 @@ async function triggerAutonomousTx(scan: any) {
       type: "INFO"
     });
 
-    // Fire-and-forget: TX'yi gönder, receipt bekleme yapma (scanning loop'u block etme)
-    // Background'da arka planda receipt sonucunu işle
-    const capturedTxHash = txHash; // Closure içinde txHash referansını yakala
-    const capturedScanName = scan.tokenPairName;
-    tx.wait(1)
-      .then((receipt) => {
-        if (receipt?.status === 1) {
-          console.log(`[TX_SUCCESS_BACKGROUND] ${capturedTxHash.slice(0, 10)}... Başarılı oldu`);
-          walletState.totalRevenueUsd += scan.netProfitUsd > 0 ? scan.netProfitUsd : 0;
-          walletState.totalGasBorrowedPol += borrowedGasPol;
-
-          // İşlemi başarılı olarak işaretle (backend'de update)
-          const idx = executionLogs.findIndex(l => l.txHash === capturedTxHash);
-          if (idx >= 0) {
-            executionLogs[idx].status = "SUCCESS";
-            executionLogs[idx].notes = `[BAŞARILI] ${capturedScanName} arbitrajı blockchain üzerinde başarılı oldu! TX: ${capturedTxHash}`;
-          }
-        } else {
-          console.log(`[TX_REVERT_BACKGROUND] ${capturedTxHash.slice(0, 10)}... Revert oldu`);
-          walletState.totalGasBorrowedPol += borrowedGasPol;
-
-          const idx = executionLogs.findIndex(l => l.txHash === capturedTxHash);
-          if (idx >= 0) {
-            executionLogs[idx].status = "FAILED_REVERT";
-            executionLogs[idx].notes = `[REVERT HATASI] Kontrat şartı veya slippage yüzünden başarısız. TX: ${capturedTxHash}`;
-          }
-        }
-      })
-      .catch((err) => {
-        console.error(`[TX_WAIT_ERROR] ${capturedTxHash.slice(0, 10)}...:`, err.message);
-      });
+    // Fire-and-forget: TX blockchain'e gönderildi, bekleme yapma (scanning loop'u block etme)
+    console.log(`[TX_FIRE_FORGET] ${txHash.slice(0, 10)}... Mempool'da - receipt tracking sonraya bırakıldı`);
 
   } catch (err: any) {
     // Gas station API hatasını sessizce yoksay (ethers.js arka plan sorgusu)
