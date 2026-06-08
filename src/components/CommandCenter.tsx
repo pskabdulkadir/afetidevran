@@ -138,6 +138,9 @@ export default function CommandCenter({
         <div>
           <span className="text-xs font-black text-slate-300 uppercase tracking-wider block mb-2">2. KONTRAKTı YETKİLENDİR</span>
           <p className="text-[11px] text-slate-400 mb-3">Deployed arbitrage kontratını sisteme tanıtır ve tetikleme izni verir.</p>
+          {contractAddress && contractAddress !== "0x0000000000000000000000000000000000000000" && (
+            <p className="text-[10px] text-emerald-400 mt-2">✅ Mevcut Kontrat: {contractAddress.slice(0, 10)}...{contractAddress.slice(-8)}</p>
+          )}
         </div>
         <div className="flex gap-2">
           <input
@@ -149,9 +152,9 @@ export default function CommandCenter({
           />
           <button
             onClick={executeContractAuthorize}
-            disabled={loading}
+            disabled={loading || !authorizationAddr}
             className="px-4 py-2.5 bg-yellow-600 hover:bg-yellow-500 disabled:bg-slate-700 text-white font-black text-xs uppercase rounded-lg flex items-center gap-2 transition whitespace-nowrap"
-          >
+            >
             <Send className="w-3.5 h-3.5" />
             YETKİLENDİR
           </button>
@@ -259,16 +262,20 @@ export default function CommandCenter({
           </div>
           <div className="flex gap-2">
             <input
-              type="number"
-              step="0.01"
+              type="text"
               value={minProfitValue}
-              onChange={(e) => setMinProfitValue(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '' || !isNaN(parseFloat(val))) {
+                  setMinProfitValue(val);
+                }
+              }}
               placeholder="0.01"
               className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 text-slate-200 text-xs font-mono rounded placeholder-slate-600 focus:outline-none focus:border-cyan-500"
             />
             <button
               onClick={executeSetMinProfitThreshold}
-              disabled={loading}
+              disabled={loading || minProfitValue === ''}
               className="px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 text-white font-black text-xs uppercase rounded-lg flex items-center gap-2 transition whitespace-nowrap"
             >
               <Send className="w-3.5 h-3.5" />
@@ -285,16 +292,20 @@ export default function CommandCenter({
           </div>
           <div className="flex gap-2">
             <input
-              type="number"
-              step="10000"
+              type="text"
               value={maxGasValue}
-              onChange={(e) => setMaxGasValue(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '' || !isNaN(parseInt(val))) {
+                  setMaxGasValue(val);
+                }
+              }}
               placeholder="500000"
               className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 text-slate-200 text-xs font-mono rounded placeholder-slate-600 focus:outline-none focus:border-lime-500"
             />
             <button
               onClick={executeSetMaxGasThreshold}
-              disabled={loading}
+              disabled={loading || maxGasValue === ''}
               className="px-4 py-2.5 bg-lime-600 hover:bg-lime-500 disabled:bg-slate-700 text-white font-black text-xs uppercase rounded-lg flex items-center gap-2 transition whitespace-nowrap"
             >
               <Send className="w-3.5 h-3.5" />
@@ -308,6 +319,7 @@ export default function CommandCenter({
           <div>
             <span className="text-xs font-black text-slate-300 uppercase tracking-wider block mb-2">Kârlılık Kontrolünü Atla (SKIP_PROFIT_CHECK)</span>
             <p className="text-[11px] text-slate-400 mb-3">Etkinleştirilirse, bot kâr kontrolü yapmadan tüm işlemleri tetikler. UYARI: Risklidir!</p>
+            <p className="text-[10px] text-slate-500 mt-2">Mevcut Durum: <span className={skipProfitValue ? "text-rose-400 font-bold" : "text-emerald-400 font-bold"}>{skipProfitValue ? "DEVRE DIŞI (Risk Modu)" : "AKTİF (Güvenli Mod)"}</span></p>
           </div>
           <button
             onClick={executeToggleSkipProfitCheck}
@@ -315,11 +327,11 @@ export default function CommandCenter({
             className={`w-full px-4 py-2.5 font-black text-xs uppercase rounded-lg flex items-center justify-center gap-2 transition ${
               skipProfitValue
                 ? "bg-rose-600 hover:bg-rose-500"
-                : "bg-slate-700 hover:bg-slate-600"
+                : "bg-emerald-600 hover:bg-emerald-500"
             } disabled:bg-slate-700 text-white`}
           >
             <Zap className="w-4 h-4" />
-            {skipProfitValue ? "❌ ATLANIYYOR - DEVRE DIŞI BIR" : "✅ ATLANMIYOR - KONTROL AKTIF"}
+            {skipProfitValue ? "🔓 DEVRE DIŞI BIRAKMAK - GÜVENLI MODA GEÇ" : "🔒 AKTİF - SİZİN KONTROLÜNÜZDE"}
           </button>
         </div>
       </div>
