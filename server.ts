@@ -1064,10 +1064,10 @@ async function triggerAutonomousTx(scan: any) {
     // EIP-1559 Gas Pricing: Doğrudan 150 Gwei + 50 Gwei priority fee (gas station bypass)
     let txOptions: any = {
       gasLimit: botConfig.gasLimitEstimate,
-      gasPrice: ethers.parseUnits("500", "gwei"), // Legacy mode: 500 Gwei (Max Spike - Acil Onaylama)
+      gasPrice: ethers.parseUnits("600", "gwei"), // Legacy mode: 600 Gwei (Ultra Spike - Sermayesiz Operasyon)
     };
 
-    notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (Max Spike Mode: 500 Gwei - Acil Onaylama)... Ağ onayı bekleniyor.`;
+    notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (Ultra Spike Mode: 600 Gwei - Sermayesiz Operasyon)... Ağ onayı bekleniyor.`;
 
     status = "PENDING";
 
