@@ -151,6 +151,8 @@ class MultiStrategyEngine {
   /**
    * 🔍 SCAN SINGLE PAIR
    * Get prices from both DEXes for a pair
+   *
+   * ⚠️ With bad data validation
    */
   async scanPair(pair) {
     const routerABI = [
@@ -172,9 +174,17 @@ class MultiStrategyEngine {
         const path = [pair.token0, pair.token1];
         const result = await router.getAmountsOut(amount, path);
 
+        const priceOut = Number(result[1]) / Math.pow(10, pair.decimals1);
+
+        // 🚨 SANITY CHECK - Detect unrealistic prices
+        if (priceOut > 1000000 || priceOut < 0.0000001) {
+          console.log(`   ⚠️ ${dex.name}: Price ${priceOut} seems unrealistic - BAD DATA`);
+          return null; // Reject unrealistic price
+        }
+
         return {
           dex: dex.name,
-          priceOut: Number(result[1]) / Math.pow(10, pair.decimals1),
+          priceOut: priceOut,
         };
       } catch (error) {
         return null;
@@ -191,37 +201,65 @@ class MultiStrategyEngine {
 
     if (Object.keys(prices).length >= 2) {
       const dexArray = Object.entries(prices);
-      const spread = ((dexArray[1][1] - dexArray[0][1]) / dexArray[0][1]) * 100;
+
+      // 🔍 VALIDATE PRICE CONSISTENCY
+      const price1 = dexArray[0][1];
+      const price2 = dexArray[1][1];
+
+      // If one price is 0 or NaN, reject
+      if (price1 === 0 || price2 === 0 || isNaN(price1) || isNaN(price2)) {
+        throw new Error(`Invalid prices for ${pair.name}`);
+      }
+
+      const spread = ((price2 - price1) / price1) * 100;
 
       this.marketData.spreads[pair.name] = {
         spread: spread.toFixed(4),
         prices,
         timestamp: Date.now(),
+        valid: true,
       };
 
       return { pair: pair.name, spread, prices };
     }
 
-    throw new Error(`Could not get prices for ${pair.name}`);
+    throw new Error(`Could not get valid prices for ${pair.name}`);
   }
 
   /**
    * 🎯 CHECK FOR OPPORTUNITIES
    * Identify profitable arbitrage opportunities
+   *
+   * ⚠️ IMPORTANT: Filter out impossible spreads (honeypots, bad data)
    */
   checkForOpportunities() {
     const opportunities = [];
 
+    // 🚨 SPREAD VALIDATION FILTERS
+    const MIN_SPREAD = 0.05;    // Minimum 0.05% (realistic)
+    const MAX_SPREAD = 5.0;     // Maximum 5% (anything above is suspicious)
+    const REASONABLE_RANGE = { min: -0.5, max: 5.0 }; // Realistic spread range
+
     Object.entries(this.marketData.spreads).forEach(([pairName, data]) => {
       const spread = parseFloat(data.spread);
 
-      if (Math.abs(spread) > 0.1) {
+      // 🔍 VALIDATION CHECKS
+      const isReasonable = spread >= REASONABLE_RANGE.min && spread <= REASONABLE_RANGE.max;
+      const isOpportunity = spread >= MIN_SPREAD && spread <= MAX_SPREAD;
+
+      if (!isReasonable) {
+        console.log(`   ⚠️ ${pairName}: Spread ${spread.toFixed(4)}% - FILTERED OUT (unrealistic)`);
+        return; // Skip this - likely bad data or honeypot
+      }
+
+      if (isOpportunity) {
         opportunities.push({
           pair: pairName,
           spread: spread.toFixed(4),
           prices: data.prices,
           profitEstimate: `$${Math.abs(spread * 5).toFixed(2)}`, // 500 USDC * spread%
           timestamp: new Date().toISOString(),
+          riskLevel: spread > 3 ? "HIGH" : "NORMAL",
         });
 
         this.stats.opportunitiesFound++;
@@ -233,7 +271,8 @@ class MultiStrategyEngine {
     if (opportunities.length > 0) {
       console.log(`\n💰 OPPORTUNITIES DETECTED: ${opportunities.length}`);
       opportunities.forEach(opp => {
-        console.log(`   ${opp.pair}: Spread ${opp.spread}% → ${opp.profitEstimate}`);
+        const riskIcon = opp.riskLevel === "HIGH" ? "⚠️" : "✅";
+        console.log(`   ${riskIcon} ${opp.pair}: Spread ${opp.spread}% → ${opp.profitEstimate}`);
       });
     }
   }
