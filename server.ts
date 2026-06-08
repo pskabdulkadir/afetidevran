@@ -1110,13 +1110,19 @@ async function triggerAutonomousTx(scan: any) {
 
   } catch (err: any) {
     // Gas station API hatasını sessizce yoksay (ethers.js arka plan sorgusu)
-    if (err.message?.includes("gasstation.polygon.technology") || err.message?.includes("gas station")) {
+    const errorMsg = err.message || "";
+    if (errorMsg.includes("gasstation.polygon.technology") || errorMsg.includes("gas station")) {
       console.log(`[Gas Station Filter] Ethers.js arka plan gas sorgusu hatası filtrelendi, işleme devam ediliyor...`);
       status = "PENDING"; // Continue as pending instead of failing
       notes = `[GAS_STATION_ERROR_FILTERED] İşlem hâlâ pending - gas sorgusu hatası kontrat'ı etkilemedi`;
+    } else if (errorMsg.includes("already known")) {
+      // TX zaten mempool'da - bu normal, bekleme devam et
+      console.log(`[TX Already Pending] TX zaten mempool'da bekleniyor. Tekrar gönderilmeyecek.`);
+      status = "PENDING";
+      notes = `[TX_ALREADY_KNOWN] Aynı TX zaten mempool'da bekleniyor. Yazılım otomatik yeniden gönderme yapmıyor.`;
     } else {
       status = "FAILED";
-      notes = `[HATA] ${err.message?.substring(0, 100) || "Bilinmeyen hata"}`;
+      notes = `[HATA] ${errorMsg.substring(0, 100) || "Bilinmeyen hata"}`;
       console.error(`[Web3 TX Error] ${notes}`, err);
     }
 
@@ -1126,6 +1132,13 @@ async function triggerAutonomousTx(scan: any) {
       desc: notes,
       type: "WARNING"
     });
+  }
+
+  // Kayıt defterinde gösterilecek temiz not
+  let displayNotes = notes;
+  if (notes.includes("[GAS_STATION_ERROR_FILTERED]") || notes.includes("[TX_ALREADY_KNOWN]")) {
+    // Silent - bu normal beklemeler, deftera büyük hatalar olarak yazma
+    displayNotes = status === "PENDING" ? "Ağ onayı bekleniyor..." : notes;
   }
 
   const logEntry = {
@@ -1140,7 +1153,7 @@ async function triggerAutonomousTx(scan: any) {
     gasCostUsd: scan.gasCostUsd,
     grossProfitUsd: scan.grossProfitUsd,
     netProfitUsd: scan.netProfitUsd > 0 ? scan.netProfitUsd : 0, // Always show scanner's profit calculation, status is just for verification
-    notes
+    notes: displayNotes
   };
 
   executionLogs.unshift(logEntry);
