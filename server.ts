@@ -209,11 +209,11 @@ process.on("unhandledRejection", (reason: any) => {
 let botConfig = {
   polygonRpcUrl: rpcPool[activeRpcIndex],
   minSpreadThreshold: 0.1, // %0.1 Varsayılan kârlılık sınırı - $893+ gibi büyük fırsatları yakalamak için
-  borrowAmountUsd: 250000,  // Başlangıç borç seviyesi: 250,000 USDC
+  borrowAmountUsd: 10000,  // Başlangıç borç seviyesi: 10,000 USDC (Flash Loan optimize)
   gasToBorrowPol: 5, // Aave V3'ten ödünç alınacak POL (gas) miktarı
   isRunning: true,
   automaticExecution: true,
-  gasLimitEstimate: 500000,
+  gasLimitEstimate: 150000,
   mevPrivateRelay: true,
   latencyThresholdMs: 800, // %100 Otonom Resilience tavan ayarı (3000ms yerine 800ms)
   omniChainEnabled: false, // Omni-Chain Genişleme Modülü
@@ -222,7 +222,7 @@ let botConfig = {
   contractAddress: process.env.CONTRACT_ADDRESS || "0x0000000000000000000000000000000000000000", // Deployed contract address
   forceExecutionThreshold: parseFloat(process.env.FORCE_EXECUTION_THRESHOLD || "0"), // Force execution threshold (Siber Karargâh modu)
   skipProfitCheck: (process.env.SKIP_PROFIT_CHECK || "").toLowerCase() === "true", // Bypass profit validation
-  maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "500000"), // Max gas limit override
+  maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "150000"), // Max gas limit override
   minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.05") // Env'den oku, fallback $0.05 (render'da set edilebilsin)
 };
 
@@ -1055,11 +1055,10 @@ async function triggerAutonomousTx(scan: any) {
     // EIP-1559 Gas Pricing: Doğrudan 150 Gwei + 50 Gwei priority fee (gas station bypass)
     let txOptions: any = {
       gasLimit: botConfig.gasLimitEstimate,
-      maxFeePerGas: ethers.parseUnits("250", "gwei"), // Max 250 Gwei cap
-      maxPriorityFeePerGas: ethers.parseUnits("70", "gwei"), // Miner tip: 70 Gwei (aggressive)
+      gasPrice: ethers.parseUnits("30", "gwei"), // Legacy mode: 30 Gwei (Flash Loan optimize)
     };
 
-    notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (EIP-1559 Mode: Max Fee: 250 Gwei, Priority: 50 Gwei)... Ağ onayı bekleniyor.`;
+    notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (Legacy Mode: 30 Gwei)... Ağ onayı bekleniyor.`;
 
     status = "PENDING";
 
@@ -1180,11 +1179,11 @@ app.post("/api/reset", (req, res) => {
   botConfig = {
     polygonRpcUrl: rpcPool[0],
     minSpreadThreshold: 0.1,
-    borrowAmountUsd: 250000,
+    borrowAmountUsd: 10000,
     gasToBorrowPol: 5,
     isRunning: true,
     automaticExecution: true,
-    gasLimitEstimate: 500000,
+    gasLimitEstimate: 150000,
     mevPrivateRelay: true,
     latencyThresholdMs: 800,
     omniChainEnabled: false,
@@ -1393,7 +1392,7 @@ app.post("/api/siber/command", (req, res) => {
     result.success = true;
     result.message = `Min profit threshold updated to: $${minProfitThreshold}`;
   } else if (command === "SET_MAX_GAS_THRESHOLD") {
-    const maxGasThreshold = params?.maxGasThreshold || 500000;
+    const maxGasThreshold = params?.maxGasThreshold || 150000;
     botConfig.maxGasThreshold = parseFloat(maxGasThreshold);
     console.log(`[SİBER KARARGÂH] SET_MAX_GAS_THRESHOLD: ${maxGasThreshold}`);
     result.success = true;
