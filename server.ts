@@ -1096,7 +1096,7 @@ async function triggerAutonomousTx(scan: any) {
     gasBorrowedPol: borrowedGasPol,
     gasCostUsd: scan.gasCostUsd,
     grossProfitUsd: scan.grossProfitUsd,
-    netProfitUsd: status === "SUCCESS" ? (scan.netProfitUsd > 0 ? scan.netProfitUsd : 0) : 0,
+    netProfitUsd: scan.netProfitUsd > 0 ? scan.netProfitUsd : 0, // Always show scanner's profit calculation, status is just for verification
     notes
   };
 
