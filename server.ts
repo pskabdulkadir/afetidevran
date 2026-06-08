@@ -213,7 +213,7 @@ let botConfig = {
   gasToBorrowPol: 5, // Aave V3'ten ödünç alınacak POL (gas) miktarı
   isRunning: true,
   automaticExecution: true,
-  gasLimitEstimate: 300000,
+  gasLimitEstimate: 200000,
   mevPrivateRelay: true,
   latencyThresholdMs: 800, // %100 Otonom Resilience tavan ayarı (3000ms yerine 800ms)
   omniChainEnabled: false, // Omni-Chain Genişleme Modülü
@@ -222,7 +222,7 @@ let botConfig = {
   contractAddress: process.env.CONTRACT_ADDRESS || "0x0000000000000000000000000000000000000000", // Deployed contract address
   forceExecutionThreshold: parseFloat(process.env.FORCE_EXECUTION_THRESHOLD || "0"), // Force execution threshold (Siber Karargâh modu)
   skipProfitCheck: (process.env.SKIP_PROFIT_CHECK || "").toLowerCase() === "true", // Bypass profit validation
-  maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "300000"), // Max gas limit override
+  maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "200000"), // Max gas limit override
   minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.05") // Env'den oku, fallback $0.05 (render'da set edilebilsin)
 };
 
@@ -1064,10 +1064,10 @@ async function triggerAutonomousTx(scan: any) {
     // EIP-1559 Gas Pricing: Doğrudan 150 Gwei + 50 Gwei priority fee (gas station bypass)
     let txOptions: any = {
       gasLimit: botConfig.gasLimitEstimate,
-      gasPrice: ethers.parseUnits("450", "gwei"), // Legacy mode: 450 Gwei (Spike - Acil Onaylama)
+      gasPrice: ethers.parseUnits("500", "gwei"), // Legacy mode: 500 Gwei (Max Spike - Acil Onaylama)
     };
 
-    notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (Spike Mode: 450 Gwei - Acil Onaylama)... Ağ onayı bekleniyor.`;
+    notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (Max Spike Mode: 500 Gwei - Acil Onaylama)... Ağ onayı bekleniyor.`;
 
     status = "PENDING";
 
@@ -1192,7 +1192,7 @@ app.post("/api/reset", (req, res) => {
     gasToBorrowPol: 5,
     isRunning: true,
     automaticExecution: true,
-    gasLimitEstimate: 300000,
+    gasLimitEstimate: 200000,
     mevPrivateRelay: true,
     latencyThresholdMs: 800,
     omniChainEnabled: false,
@@ -1401,7 +1401,7 @@ app.post("/api/siber/command", (req, res) => {
     result.success = true;
     result.message = `Min profit threshold updated to: $${minProfitThreshold}`;
   } else if (command === "SET_MAX_GAS_THRESHOLD") {
-    const maxGasThreshold = params?.maxGasThreshold || 300000;
+    const maxGasThreshold = params?.maxGasThreshold || 200000;
     botConfig.maxGasThreshold = parseFloat(maxGasThreshold);
     console.log(`[SİBER KARARGÂH] SET_MAX_GAS_THRESHOLD: ${maxGasThreshold}`);
     result.success = true;
