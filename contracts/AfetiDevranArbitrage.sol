@@ -257,21 +257,15 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
         IERC20(tradeAsset).approve(address(POOL), tradeOwed);
         IERC20(gasAsset).approve(address(POOL), gasOwed);
 
-        // --- AFETİ DEVRAN V5 SERMAYESIZ MODU ---
-        // SKIP_PROFIT_CHECK ortamında: Borç geri ödemesi başarılı ise, kâr (varsa) cüzdana aktar
-        // Bu mode, Polygon test/simulator ağlarında Aave borclarının başarıyla ödendiğini kanıtlar
-        // Mainnet'te gerçek arbitraj spread'leri otomatik kâr sağlar
+        // --- AFETİ DEVRAN V5 GERÇEK ARBITRAJ LOGIC ---
+        // Aave borclarından sonra kontrat bakiyesinin BAŞLANGIÇ bakiyesinden DAHA FAZLA olması gerekir
+        // Bu, arbitrajda gerçek kâr elde edildiğini kanıtlar
+        require(
+            currentTradeBalance - tradeOwed > startTradeBalance,
+            "AfetiDevran: Arbitrage must be profitable! Insufficient spread or excessive slippage."
+        );
 
-        bool skipProfitCheck = true; // Render .env'deki SKIP_PROFIT_CHECK ayarı ile senkronize et
-        if (!skipProfitCheck) {
-            require(
-                currentTradeBalance - tradeOwed > startTradeBalance,
-                "VE5 KORUMASI: Gaz ve borclar dustukten sonra kazanc saglanamadigi icin revert edildi!"
-            );
-        } else {
-            // Sermayesiz mod: Aave borcları düşmedikten sonra, cüzdan ne kaldıysa transfer et (0 olsa bile başarısayılır)
-            emit ArbitrajBasarili(0, tradeAsset); // Net kâr 0 olabilir, ama borç ödendi = başarı
-        }
+        emit ArbitrajBasarili(currentTradeBalance - tradeOwed - startTradeBalance, tradeAsset);
 
         // Net kârın kontrat sahibinin cüzdanına transfer edilmesi
         uint256 netProfit = currentTradeBalance - tradeOwed;

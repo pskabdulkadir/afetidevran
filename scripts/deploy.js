@@ -1,4 +1,5 @@
-const hre = require("hardhat");
+import hardhat from "hardhat";
+const hre = hardhat;
 
 async function main() {
   console.log("=================================================");
@@ -18,8 +19,8 @@ async function main() {
 
   const AfetiDevranArbitrage = await hre.ethers.getContractFactory("AfetiDevranArbitrage");
 
-  // Deploying the contract with Aave Addresses Provider constructor argument
-  const contract = await AfetiDevranArbitrage.deploy(AAVE_POOL_ADDRESSES_PROVIDER);
+  // Deploying the contract (constructor otomatik Aave adreslerini set ediyor)
+  const contract = await AfetiDevranArbitrage.deploy();
   console.log("📨 Transaction broadcasted. Waiting for network confirmation...");
 
   await contract.waitForDeployment();
@@ -38,3 +39,5 @@ main().catch((error) => {
   console.error("\n❌ Deployment hatası:", error);
   process.exitCode = 1;
 });
+
+export default main;
