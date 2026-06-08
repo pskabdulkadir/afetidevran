@@ -29,10 +29,22 @@ class AutonomousWatchdog {
 
       this.errorLog = {};
       this.marketData = { spread: 0, lastUpdate: 0 };
+
+      // 🔄 HIGH-FREQUENCY ARBITRAGE MODE (Yüksek Frekanslı Arbitraj)
       this.parameters = {
-        slippageTolerance: 995,
-        minProfit: 100,
-        borrowAmount: ethers.parseUnits("10000", 6),
+        slippageTolerance: 990,        // 1% tolerance (daha agresif)
+        minProfitSpread: 0.1,          // %0.1'lik spread'te işlem yap (daha sık)
+        minProfitUSD: 1,               // En az $1 net kâr
+        borrowAmount: ethers.parseUnits("500", 6),  // 500 USDC per trade (daha küçük, daha hızlı)
+        maxConcurrentTrades: 3,        // Aynı anda max 3 işlem
+        tradeFrequency: 15000,         // Her 15 saniye kontrol (30 yerine 15)
+      };
+
+      this.tradeStats = {
+        totalTrades: 0,
+        successfulTrades: 0,
+        totalProfit: 0,
+        lastTrade: null,
       };
 
       console.log("✅ Watchdog initialized successfully");
@@ -165,30 +177,59 @@ class AutonomousWatchdog {
   }
 
   async startMonitoring() {
-    console.log("\n🚀 Starting autonomous monitoring...\n");
+    console.log("\n🚀 Starting HIGH-FREQUENCY ARBITRAGE MONITORING...\n");
+    console.log("📈 Mode: Yüksek Frekanslı (Sık ve Küçük İşlemler)");
+    console.log(`   Min Spread Threshold: ${this.parameters.minProfitSpread}%`);
+    console.log(`   Trade Size: ${ethers.formatUnits(this.parameters.borrowAmount, 6)} USDC`);
+    console.log(`   Check Frequency: Every ${this.parameters.tradeFrequency / 1000}s\n`);
 
-    // Market data every 30 seconds
-    setInterval(() => this.captureMarketData(), 30000);
+    // Market data capture - MUCH MORE FREQUENTLY
+    setInterval(() => this.captureMarketData(), this.parameters.tradeFrequency);
+
+    // Initial capture
+    await this.captureMarketData();
 
     // Error analysis
     await this.analyzeAndRepair();
 
-    // Opportunity detection every 5 minutes
+    // Aggressive opportunity detection - Every 15 seconds
     setInterval(async () => {
-      if (parseFloat(this.marketData.spread) > 0.3) {
-        console.log("\n💰 Profitable opportunity detected!");
-        console.log(`   Spread: ${this.marketData.spread}%`);
+      const spreadNum = parseFloat(this.marketData.spread);
+
+      if (spreadNum > this.parameters.minProfitSpread) {
+        console.log("\n💰 OPPORTUNITY DETECTED!");
+        console.log(`   ✅ Spread: ${this.marketData.spread}% (Target: ${this.parameters.minProfitSpread}%+)`);
+        console.log(`   💵 Estimated Profit: $${(spreadNum * this.parameters.borrowAmount / 100).toFixed(2)}`);
+        console.log(`   🔄 Ready to execute trade...\n`);
+
+        // Trade execution would happen here
+        this.tradeStats.totalTrades++;
+      } else if (spreadNum > 0.05) {
+        console.log(`📊 Near threshold: Spread = ${this.marketData.spread}% (waiting for ${this.parameters.minProfitSpread}%)`);
       }
-    }, 300000);
+    }, this.parameters.tradeFrequency);
   }
 
   generateReport() {
+    const spreadNum = parseFloat(this.marketData.spread);
+    const estimatedProfit = (spreadNum * Number(this.parameters.borrowAmount)) / 100;
+
     return {
       timestamp: new Date().toISOString(),
-      market: this.marketData,
+      mode: "HIGH-FREQUENCY ARBITRAGE (Yüksek Frekanslı)",
+      market: {
+        ...this.marketData,
+        spreadPercentage: spreadNum,
+        isOpportunity: spreadNum > this.parameters.minProfitSpread,
+        estimatedProfitPerTrade: `$${estimatedProfit.toFixed(2)}`,
+      },
       parameters: this.parameters,
+      tradeStats: {
+        ...this.tradeStats,
+        estimatedDailyProfit: `$${(this.tradeStats.totalTrades * estimatedProfit * 0.5).toFixed(2)}`, // 50% success rate estimate
+      },
       errors: this.errorLog,
-      status: "Monitoring Active",
+      status: "HIGH-FREQUENCY MONITORING ACTIVE",
       uptime: process.uptime(),
     };
   }
