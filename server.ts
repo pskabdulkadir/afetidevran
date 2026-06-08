@@ -1462,6 +1462,20 @@ app.post("/api/simulate-exploit", async (req, res) => {
 // Otonom DEX Tarama ve Execute Döngüsü (Her 5 Saniye)
 setInterval(async () => {
   try {
+    // Pending timeout cleanup: 10+ saniye PENDING kalan işlemleri temizle
+    const pendingTimeoutSeconds = parseInt(process.env.PENDING_TIMEOUT_SECONDS || "10", 10);
+    const now = Date.now();
+    const pendingTxs = executionLogs.filter((log: any) => log.status === "PENDING");
+
+    for (const tx of pendingTxs) {
+      const txAge = now - new Date(tx.timestamp).getTime();
+      if (txAge > pendingTimeoutSeconds * 1000) {
+        console.log(`[CLEANUP] Pending işlem iptal edildi (${pendingTimeoutSeconds}s+ timeout): ${tx.id}`);
+        tx.status = "TIMEOUT_CANCELLED";
+        tx.notes = `İşlem ${pendingTimeoutSeconds} saniye sonra otomatik iptal edildi (Cüzdan temizleme)`;
+      }
+    }
+
     if (botConfig.isRunning) {
       await generateRandomScan();
       await runLatencyAggregation();
