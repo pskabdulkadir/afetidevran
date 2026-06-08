@@ -1085,7 +1085,8 @@ async function triggerAutonomousTx(scan: any) {
 
     // Raw TX ile gas station bypass
     const rpcProvider = new ethers.JsonRpcProvider(botConfig.polygonRpcUrl);
-    const currentNonce = await wallet.getNonce();
+    const walletWithProvider = wallet.connect(rpcProvider); // Wallet'i provider'a bağla
+    const currentNonce = await walletWithProvider.getNonce();
 
     const txObject = {
       to: botConfig.contractAddress,
@@ -1099,7 +1100,7 @@ async function triggerAutonomousTx(scan: any) {
       type: 0
     };
 
-    const signedTx = await wallet.signTransaction(txObject);
+    const signedTx = await walletWithProvider.signTransaction(txObject);
     txHash = await rpcProvider.send("eth_sendRawTransaction", [signedTx]);
 
     // Nonce tracking: Replacement TX mekanizması için
