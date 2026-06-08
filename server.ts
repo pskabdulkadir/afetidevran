@@ -1064,10 +1064,7 @@ async function triggerAutonomousTx(scan: any) {
     const contractAbi = [
       "function executeMultiFlashLoan(address tradeAsset, uint256 tradeAmount, address gasAsset, uint256 gasAmount) external"
     ];
-    // Signer olarak wallet kullan (provider bypass - gas station API'sinden kaçmak için)
-    const rpcProvider = new ethers.JsonRpcProvider(botConfig.polygonRpcUrl);
-    const walletWithProvider = wallet.connect(rpcProvider);
-    const contract = new ethers.Contract(botConfig.contractAddress, contractAbi, walletWithProvider);
+    const iface = new ethers.Interface(contractAbi);
 
     const USDC_ADDRESS = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
     const WPOL_ADDRESS = "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270";
@@ -1075,35 +1072,44 @@ async function triggerAutonomousTx(scan: any) {
     const tradeAmountWei = ethers.parseUnits(botConfig.borrowAmountUsd.toString(), 6);
     const gasAmountWei = ethers.parseUnits(borrowedGasPol.toString(), 18);
 
-    // EIP-1559 Gas Pricing: Doğrudan 150 Gwei + 50 Gwei priority fee (gas station bypass)
-    let txOptions: any = {
-      gasLimit: botConfig.gasLimitEstimate,
-      gasPrice: ethers.parseUnits("600", "gwei"), // Legacy mode: 600 Gwei (Ultra Spike - Sermayesiz Operasyon)
-    };
-
-    notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (Ultra Spike Mode: 600 Gwei - Sermayesiz Operasyon)... Ağ onayı bekleniyor.`;
-
-    status = "PENDING";
-
-    const tx = await contract.executeMultiFlashLoan(
+    // Function call data encode
+    const data = iface.encodeFunctionData("executeMultiFlashLoan", [
       USDC_ADDRESS,
       tradeAmountWei,
       WPOL_ADDRESS,
-      gasAmountWei,
-      txOptions
-    );
+      gasAmountWei
+    ]);
 
-    txHash = tx.hash;
+    notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (Raw TX Mode: 600 Gwei)... Ağ onayı bekleniyor.`;
+    status = "PENDING";
+
+    // Raw TX ile gas station bypass
+    const rpcProvider = new ethers.JsonRpcProvider(botConfig.polygonRpcUrl);
+    const currentNonce = await wallet.getNonce();
+
+    const txObject = {
+      to: botConfig.contractAddress,
+      from: wallet.address,
+      data: data,
+      value: 0n,
+      nonce: currentNonce,
+      gasLimit: BigInt(botConfig.gasLimitEstimate),
+      gasPrice: ethers.parseUnits("600", "gwei"),
+      chainId: 137,
+      type: 0
+    };
+
+    const signedTx = await wallet.signTransaction(txObject);
+    txHash = await rpcProvider.send("eth_sendRawTransaction", [signedTx]);
 
     // Nonce tracking: Replacement TX mekanizması için
-    const currentNonce = await walletWithProvider.getNonce();
     walletNonce = currentNonce;
-    pendingTxMap.set(currentNonce - 1, {
+    pendingTxMap.set(currentNonce, {
       txHash: txHash,
       sentAt: Date.now(),
       gasPrice: ethers.parseUnits("600", "gwei")
     });
-    console.log(`[NONCE_TRACKING] TX nonce=${currentNonce - 1}, hash=${txHash.slice(0, 10)}..., gasPrice=600 Gwei`);
+    console.log(`[TX_SUBMITTED_RAW] Nonce ${currentNonce}, hash=${txHash.slice(0, 10)}..., 600 Gwei`);
 
     status = "PENDING";
     const txHashShort = txHash.slice(0, 10);
