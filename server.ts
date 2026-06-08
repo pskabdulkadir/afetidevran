@@ -1513,7 +1513,9 @@ setInterval(async () => {
           const pk = process.env.PRIVATE_KEY;
           if (pk && pk.trim() !== "") {
             const cleanPk = pk.trim().startsWith("0x") ? pk.trim() : `0x${pk.trim()}`;
-            const rpcProvider = new ethers.JsonRpcProvider(botConfig.polygonRpcUrl || rpcPool[0], 137, { staticNetwork: true });
+            // Replacement TX için PublicNode kullan (gas station sorunlarından uzak)
+            const replacementRpcUrl = "https://polygon-bor-rpc.publicnode.com";
+            const rpcProvider = new ethers.JsonRpcProvider(replacementRpcUrl, 137, { staticNetwork: true });
             const wallet = new ethers.Wallet(cleanPk, rpcProvider);
 
             try {
