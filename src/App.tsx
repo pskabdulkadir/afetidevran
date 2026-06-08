@@ -682,6 +682,9 @@ export default function App() {
             <CommandCenter
               contractAddress={config.contractAddress}
               forceExecutionThreshold={config.forceExecutionThreshold}
+              minProfitThreshold={config.minProfitThreshold}
+              maxGasThreshold={config.maxGasThreshold}
+              skipProfitCheck={config.skipProfitCheck}
             />
           </div>
         ) : (

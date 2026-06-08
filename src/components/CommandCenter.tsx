@@ -4,13 +4,25 @@ import { Terminal, Send, CheckCircle2, AlertCircle, Zap } from "lucide-react";
 interface CommandCenterProps {
   contractAddress?: string;
   forceExecutionThreshold?: number;
+  minProfitThreshold?: number;
+  maxGasThreshold?: number;
+  skipProfitCheck?: boolean;
 }
 
-export default function CommandCenter({ contractAddress = "0x0000000000000000000000000000000000000000", forceExecutionThreshold = 0 }: CommandCenterProps) {
+export default function CommandCenter({
+  contractAddress = "0x0000000000000000000000000000000000000000",
+  forceExecutionThreshold = 0,
+  minProfitThreshold = 0.01,
+  maxGasThreshold = 500000,
+  skipProfitCheck = false
+}: CommandCenterProps) {
   const [commands, setCommands] = useState<Array<{ command: string; timestamp: string; status: "pending" | "success" | "error"; message: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [authorizationAddr, setAuthorizationAddr] = useState(contractAddress);
   const [thresholdValue, setThresholdValue] = useState(forceExecutionThreshold.toString());
+  const [minProfitValue, setMinProfitValue] = useState(minProfitThreshold.toString());
+  const [maxGasValue, setMaxGasValue] = useState(maxGasThreshold.toString());
+  const [skipProfitValue, setSkipProfitValue] = useState(skipProfitCheck);
 
   const sendCommand = async (command: string, params?: Record<string, any>) => {
     setLoading(true);
@@ -74,6 +86,28 @@ export default function CommandCenter({ contractAddress = "0x0000000000000000000
 
   const executeSetMinProfit = async () => {
     await sendCommand("SET_MIN_PROFIT", { minProfit: 0.0000000001 });
+  };
+
+  const executeSetMinProfitThreshold = async () => {
+    const value = parseFloat(minProfitValue);
+    if (isNaN(value) || value < 0) {
+      alert("Geçerli bir sayı girin (ör: 0.01)");
+      return;
+    }
+    await sendCommand("SET_MIN_PROFIT_THRESHOLD", { minProfitThreshold: value });
+  };
+
+  const executeSetMaxGasThreshold = async () => {
+    const value = parseFloat(maxGasValue);
+    if (isNaN(value) || value < 0) {
+      alert("Geçerli bir sayı girin (ör: 500000)");
+      return;
+    }
+    await sendCommand("SET_MAX_GAS_THRESHOLD", { maxGasThreshold: value });
+  };
+
+  const executeToggleSkipProfitCheck = async () => {
+    await sendCommand("TOGGLE_SKIP_PROFIT_CHECK", { skipProfitCheck: !skipProfitValue });
   };
 
   return (
@@ -211,6 +245,83 @@ export default function CommandCenter({ contractAddress = "0x0000000000000000000
           <Zap className="w-4 h-4" />
           SET_MIN_PROFIT: 0.0000000001
         </button>
+      </div>
+
+      {/* ENVIRONMENT VARIABLES SETTINGS */}
+      <div className="border-t border-slate-800 pt-4 mt-4">
+        <h4 className="text-xs font-black text-yellow-500 uppercase tracking-wider mb-4">⚙️ ORTAM DEĞİŞKENLERİ (Environment Variables)</h4>
+
+        {/* MIN_PROFIT_THRESHOLD */}
+        <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 space-y-3 mb-3">
+          <div>
+            <span className="text-xs font-black text-slate-300 uppercase tracking-wider block mb-2">Minimum Kâr Eşiği (MIN_PROFIT_THRESHOLD)</span>
+            <p className="text-[11px] text-slate-400 mb-3">İşlem başlatılması için gerekli minimum net kâr (USD). Varsayılan: $0.01</p>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              step="0.01"
+              value={minProfitValue}
+              onChange={(e) => setMinProfitValue(e.target.value)}
+              placeholder="0.01"
+              className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 text-slate-200 text-xs font-mono rounded placeholder-slate-600 focus:outline-none focus:border-cyan-500"
+            />
+            <button
+              onClick={executeSetMinProfitThreshold}
+              disabled={loading}
+              className="px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-700 text-white font-black text-xs uppercase rounded-lg flex items-center gap-2 transition whitespace-nowrap"
+            >
+              <Send className="w-3.5 h-3.5" />
+              GÜNCELLE
+            </button>
+          </div>
+        </div>
+
+        {/* MAX_GAS_THRESHOLD */}
+        <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 space-y-3 mb-3">
+          <div>
+            <span className="text-xs font-black text-slate-300 uppercase tracking-wider block mb-2">Maksimum Gas Limiti (MAX_GAS_THRESHOLD)</span>
+            <p className="text-[11px] text-slate-400 mb-3">İşlem için harcayacak maksimum gas limiti. Varsayılan: 500000</p>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              step="10000"
+              value={maxGasValue}
+              onChange={(e) => setMaxGasValue(e.target.value)}
+              placeholder="500000"
+              className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 text-slate-200 text-xs font-mono rounded placeholder-slate-600 focus:outline-none focus:border-lime-500"
+            />
+            <button
+              onClick={executeSetMaxGasThreshold}
+              disabled={loading}
+              className="px-4 py-2.5 bg-lime-600 hover:bg-lime-500 disabled:bg-slate-700 text-white font-black text-xs uppercase rounded-lg flex items-center gap-2 transition whitespace-nowrap"
+            >
+              <Send className="w-3.5 h-3.5" />
+              GÜNCELLE
+            </button>
+          </div>
+        </div>
+
+        {/* SKIP_PROFIT_CHECK */}
+        <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 space-y-3">
+          <div>
+            <span className="text-xs font-black text-slate-300 uppercase tracking-wider block mb-2">Kârlılık Kontrolünü Atla (SKIP_PROFIT_CHECK)</span>
+            <p className="text-[11px] text-slate-400 mb-3">Etkinleştirilirse, bot kâr kontrolü yapmadan tüm işlemleri tetikler. UYARI: Risklidir!</p>
+          </div>
+          <button
+            onClick={executeToggleSkipProfitCheck}
+            disabled={loading}
+            className={`w-full px-4 py-2.5 font-black text-xs uppercase rounded-lg flex items-center justify-center gap-2 transition ${
+              skipProfitValue
+                ? "bg-rose-600 hover:bg-rose-500"
+                : "bg-slate-700 hover:bg-slate-600"
+            } disabled:bg-slate-700 text-white`}
+          >
+            <Zap className="w-4 h-4" />
+            {skipProfitValue ? "❌ ATLANIYYOR - DEVRE DIŞI BIR" : "✅ ATLANMIYOR - KONTROL AKTIF"}
+          </button>
+        </div>
       </div>
 
       {/* Command Log */}

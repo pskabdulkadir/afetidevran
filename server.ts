@@ -1323,6 +1323,24 @@ app.post("/api/siber/command", (req, res) => {
     console.log(`[SİBER KARARGÂH] SET_MIN_PROFIT: ${minProfit} | minSpreadThreshold: 0.001%`);
     result.success = true;
     result.message = `Min profit set to: $${minProfit}. Spread threshold: 0.001% (ULTRA-AGGRESSIVE MODE)`;
+  } else if (command === "SET_MIN_PROFIT_THRESHOLD") {
+    const minProfitThreshold = params?.minProfitThreshold || 0.01;
+    botConfig.minProfitThreshold = parseFloat(minProfitThreshold);
+    console.log(`[SİBER KARARGÂH] SET_MIN_PROFIT_THRESHOLD: $${minProfitThreshold}`);
+    result.success = true;
+    result.message = `Min profit threshold updated to: $${minProfitThreshold}`;
+  } else if (command === "SET_MAX_GAS_THRESHOLD") {
+    const maxGasThreshold = params?.maxGasThreshold || 500000;
+    botConfig.maxGasThreshold = parseFloat(maxGasThreshold);
+    console.log(`[SİBER KARARGÂH] SET_MAX_GAS_THRESHOLD: ${maxGasThreshold}`);
+    result.success = true;
+    result.message = `Max gas threshold updated to: ${maxGasThreshold}`;
+  } else if (command === "TOGGLE_SKIP_PROFIT_CHECK") {
+    const skipProfitCheck = params?.skipProfitCheck ?? !botConfig.skipProfitCheck;
+    botConfig.skipProfitCheck = skipProfitCheck;
+    console.log(`[SİBER KARARGÂH] TOGGLE_SKIP_PROFIT_CHECK: ${skipProfitCheck}`);
+    result.success = true;
+    result.message = `Skip profit check toggled to: ${skipProfitCheck ? "ENABLED (⚠️ RISKY!)" : "DISABLED (Normal Mode)"}`;
   } else {
     result.message = "Unknown command";
   }
