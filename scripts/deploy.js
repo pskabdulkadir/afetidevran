@@ -6,8 +6,8 @@ async function main() {
   console.log("🚀 AFETİ DEVRAN V5 - POLYGON DEPLOYMENT ENGINE");
   console.log("=================================================");
 
-  // Real Aave V3 Pool Addresses Provider on Polygon Mainnet
-  const AAVE_POOL_ADDRESSES_PROVIDER = "0xa97684ead0e402dC232d5A977953DF7ECBaB3CDb";
+  // Real Aave V3 Pool Addresses Provider on Polygon Mainnet (Doğru adres)
+  const AAVE_POOL_ADDRESSES_PROVIDER = "0xa97684eAd0e402dC232d5a524153D7b0B733B4E3";
 
   const [deployer] = await hre.ethers.getSigners();
   console.log(`📡 Deployer Address: ${deployer.address}`);

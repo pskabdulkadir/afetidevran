@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
-/**
- * @title IERC20
- * @dev Standart ERC20 token interface'i.
- */
 interface IERC20 {
     function totalSupply() external view returns (uint256);
     function balanceOf(address account) external view returns (uint256);
@@ -16,10 +12,6 @@ interface IERC20 {
     event Approval(address indexed owner, address indexed spender, uint256 value);
 }
 
-/**
- * @title IUniswapV2Router02
- * @dev QuickSwap ve SushiSwap gibi borsa yönlendirici arayüzü.
- */
 interface IUniswapV2Router02 {
     function swapExactTokensForTokens(
         uint amountIn,
@@ -35,18 +27,10 @@ interface IUniswapV2Router02 {
     ) external view returns (uint[] memory amounts);
 }
 
-/**
- * @title IPoolAddressesProvider
- * @dev Aave V3 Havuz Adres Sağlayıcı Arayüzü.
- */
 interface IPoolAddressesProvider {
     function getPool() external view returns (address);
 }
 
-/**
- * @title IPool
- * @dev Aave V3 Havuz Arayüzü (Çoklu Varlık / Multi-Asset Flash Loan Destekli).
- */
 interface IPool {
     function flashLoan(
         address receiverAddress,
@@ -59,10 +43,6 @@ interface IPool {
     ) external;
 }
 
-/**
- * @title IFlashLoanReceiver
- * @dev Aave V3 Çoklu Varlık Flaş Kredisi Alıcı Arayüzü (V5).
- */
 interface IFlashLoanReceiver {
     function executeOperation(
         address[] calldata assets,
@@ -76,51 +56,47 @@ interface IFlashLoanReceiver {
     function POOL() external view returns (IPool);
 }
 
-/**
- * @title AfetiDevranArbitrage
- * @author Abdulkadir
- * @dev Flaş Kredi Arbitraj Kontratı (AFETİ DEVRAN V5: Multi-Asset & Sıfır Gas Maliyetli Sürüm)
- * Polygon ağında çalışır, Aave V3'ten hem USDC hem de POL (Gas) çekerek cüzdan bakiyesini 0 gas'ta korur.
- */
 contract AfetiDevranArbitrage is IFlashLoanReceiver {
     address public immutable owner;
     IPoolAddressesProvider public immutable override ADDRESSES_PROVIDER;
     IPool public immutable override POOL;
 
-    // Arbitraj olay izleme logları
-    event MultiFlashLoanBaslatildi(address[] assets, uint256[] amounts);
-    event ArbitrajBasarili(uint256 netKar, address indexed asset);
-    event TakasGerceklesti(string borsa, uint256 girisMiktar, uint256 cikisMiktar);
+    event MultiFlashLoanInitiated(address[] assets, uint256[] amounts);
+    event ArbitrageSuccess(uint256 netProfit, address indexed asset);
+    event SwapExecuted(string exchange, uint256 inputAmount, uint256 outputAmount);
+    event KillSwitchActivated(uint256 failureCount);
+    event FailureLogged(string reason, uint256 attemptNumber);
+
+    uint256 private failureCount = 0;
+    bool public isStopped = false;
 
     modifier onlyOwner() {
-        require(msg.sender == owner, "AfetiDevran: Sadece kontrat sahibi tetikleyebilir");
+        require(msg.sender == owner, "Only contract owner can call this");
         _;
     }
 
-    /**
-     * Polygon Aave V3 Adres Sağlayıcısı otomatik set ediliyor.
-     */
-    constructor() {
-        owner = msg.sender;
-        // Polygon Aave V3 Adresleri (deployment sonrası update edilebilir)
-        ADDRESSES_PROVIDER = IPoolAddressesProvider(0xA97684eAd0e402DC232d5a524153D7b0B733B4E3);
-        POOL = IPool(0x794a61358D6845594F94dc1DB02A252b5b4814aD); // Polygon Aave V3 Pool
+    modifier whenNotStopped() {
+        require(!isStopped, "Kill Switch activated - bot stopped");
+        _;
     }
 
-    /**
-     * @notice Multi-Asset Flash Loan işlemini başlatır. Sadece kontrat sahibi tetikleyebilir.
-     * Hem ticaret tokenını (örn: USDC) hem de Gas için harcanacak POL (WMATIC/WPOL) tokenını aynı anda borç alır.
-     * @param tradeAsset Borç alınacak ana ticaret token adresi (örn: USDC, WETH veya USDT).
-     * @param tradeAmount Ticaret için çekilecek sermaye hacmi.
-     * @param gasAsset Gas harcanmasını telafi etmek amacıyla havuzdan çekilecek POL (WMATIC) token adresi.
-     * @param gasAmount Borç alınacak gaz miktarı (örn: 5-10 POL).
-     */
+    constructor() {
+        owner = msg.sender;
+        ADDRESSES_PROVIDER = IPoolAddressesProvider(0xA97684eAd0e402DC232d5a524153D7b0B733B4E3);
+        POOL = IPool(0x794a61358D6845594F94dc1DB02A252b5b4814aD);
+    }
+
     function executeMultiFlashLoan(
         address tradeAsset,
         uint256 tradeAmount,
         address gasAsset,
         uint256 gasAmount
-    ) external onlyOwner {
+    ) external onlyOwner whenNotStopped {
+        // Gas threshold check: profit must exceed 2x estimated gas cost
+        // For production: uncomment the line below
+        // uint256 estimatedGasCost = 500000 * tx.gasprice;
+        // require(tradeAmount > estimatedGasCost * 2, "Profit too low relative to gas cost");
+
         address[] memory assets = new address[](2);
         assets[0] = tradeAsset;
         assets[1] = gasAsset;
@@ -129,12 +105,11 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
         amounts[0] = tradeAmount;
         amounts[1] = gasAmount;
 
-        // Aave V3 için faiz modları: 0 = Flaş Kredi (Teminatsız ve anlık geri ödemeli)
         uint256[] memory interestRateModes = new uint256[](2);
         interestRateModes[0] = 0;
         interestRateModes[1] = 0;
 
-        emit MultiFlashLoanBaslatildi(assets, amounts);
+        emit MultiFlashLoanInitiated(assets, amounts);
 
         POOL.flashLoan(
             address(this),
@@ -147,10 +122,6 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
         );
     }
 
-    /**
-     * @notice Aave havuzu tarafından çoklu flaş kredisi gönderildikten sonra tetiklenen geri çağırma fonksiyonu.
-     * Bu fonksiyon hem USDC hem de POL borçlarını yönetir ve "AFETİ DEVRAN V5" korumasını devreye alır.
-     */
     function executeOperation(
         address[] calldata assets,
         uint256[] calldata amounts,
@@ -158,10 +129,9 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
         address initiator,
         bytes calldata params
     ) external override returns (bool) {
-        require(msg.sender == address(POOL), "AfetiDevran: Tetikleyici sadece Aave Havuzu olmalidir");
-        
-        // assets[0]: Ticari Varlık (Örn: USDC)
-        // assets[1]: Gas Varlığı (Örn: WMATIC/WPOL)
+        require(msg.sender == address(POOL), "Caller must be Aave Pool");
+        require(!isStopped, "Kill Switch active - operation blocked");
+
         address tradeAsset = assets[0];
         address gasAsset = assets[1];
 
@@ -171,32 +141,27 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
         uint256 tradeOwed = tradeAmount + premiums[0];
         uint256 gasOwed = gasAmount + premiums[1];
 
-        // ----------------- AFETİ DEVRAN V5 FAIL-SAFE KORUMA KALKANI -----------------
         uint256 startTradeBalance = IERC20(tradeAsset).balanceOf(address(this)) - tradeAmount;
-        
-        // Borsa adres tanımlamaları (Polygon Mainnet)
-        address quickswapRouter = 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff; 
-        address sushiswapRouter = 0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506; 
-        
-        // Ara birim ana token (Polygon WETH adresi)
+
+        address quickswapRouter = 0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff;
+        address sushiswapRouter = 0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506;
         address wethAddress = 0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619;
-        
+
         address intermediaryToken = wethAddress;
         if (tradeAsset == wethAddress) {
-            intermediaryToken = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174; // USDC
+            intermediaryToken = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
         }
 
-        // --- ADIM 1: QuickSwap Borsasında Alış (Ödünç alınan ticari varlığı ara token'a çevir) ---
+        // Step 1: Swap on QuickSwap
         IERC20(tradeAsset).approve(quickswapRouter, tradeAmount);
-        
+
         address[] memory pathBuy = new address[](2);
         pathBuy[0] = tradeAsset;
         pathBuy[1] = intermediaryToken;
 
         uint256 deadline = block.timestamp + 300;
-        
-        // %0.5 slippage tolerance (Bu fiyat en az %99.5'i olmalı)
-        uint256 minBuyAmount = (tradeAmount * 995) / 1000; // 99.5%
+        uint256 minBuyAmount = (tradeAmount * 995) / 1000;
+
         uint[] memory buyAmounts = IUniswapV2Router02(quickswapRouter).swapExactTokensForTokens(
             tradeAmount,
             minBuyAmount,
@@ -205,17 +170,16 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
             deadline
         );
         uint256 boughtIntermediaryAmount = buyAmounts[buyAmounts.length - 1];
-        emit TakasGerceklesti("QuickSwap", tradeAmount, boughtIntermediaryAmount);
+        emit SwapExecuted("QuickSwap", tradeAmount, boughtIntermediaryAmount);
 
-        // --- ADIM 2: SushiSwap Borsasında Satış (Ara token'ı tekrar başlangıç token'ına çevir) ---
+        // Step 2: Swap back on SushiSwap
         IERC20(intermediaryToken).approve(sushiswapRouter, boughtIntermediaryAmount);
 
         address[] memory pathSell = new address[](2);
         pathSell[0] = intermediaryToken;
         pathSell[1] = tradeAsset;
 
-        // %0.5 slippage tolerance
-        uint256 minSellAmount = (boughtIntermediaryAmount * 995) / 1000; // 99.5%
+        uint256 minSellAmount = (boughtIntermediaryAmount * 995) / 1000;
         uint[] memory sellAmounts = IUniswapV2Router02(sushiswapRouter).swapExactTokensForTokens(
             boughtIntermediaryAmount,
             minSellAmount,
@@ -224,25 +188,22 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
             deadline
         );
         uint256 finalAssetAmount = sellAmounts[sellAmounts.length - 1];
-        emit TakasGerceklesti("SushiSwap", boughtIntermediaryAmount, finalAssetAmount);
+        emit SwapExecuted("SushiSwap", boughtIntermediaryAmount, finalAssetAmount);
 
-        // --- ADIM 3: Gaz Ücreti ve Aave Geri Ödemeleri ---
+        // Step 3: Handle gas repayment
         uint256 currentTradeBalance = IERC20(tradeAsset).balanceOf(address(this));
-        
-        // Borç alınan POL (Gas) miktarının Aave'ye iadesi için ticari kârdan POL satın alma (Eğer cüzdandaki POL yetersizse takastan öder)
-        // Bu işlem, işlem başında Aave'den çekilmiş olan POL borcunun kârlı ticari varlık ile kapatılmasını sağlar.
         uint256 currentGasBalance = IERC20(gasAsset).balanceOf(address(this));
+
         if (currentGasBalance < gasOwed) {
             uint256 missingGas = gasOwed - currentGasBalance;
-            // Ticari varlığı borsa üzerinden POL'e (gasAsset) çevir
             IERC20(tradeAsset).approve(quickswapRouter, currentTradeBalance);
+
             address[] memory pathGasBuy = new address[](2);
             pathGasBuy[0] = tradeAsset;
             pathGasBuy[1] = gasAsset;
-            
-            // Flaş kredi borcunu kapatacak kadar gaz satın alıyoruz
+
             IUniswapV2Router02(quickswapRouter).swapExactTokensForTokens(
-                missingGas, // Bu kadar POL almak istiyoruz (ya da basitleştirilmiş path ile)
+                missingGas,
                 0,
                 pathGasBuy,
                 address(this),
@@ -250,32 +211,38 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
             );
         }
 
-        // Güncel bakiye kontrolleri
         currentTradeBalance = IERC20(tradeAsset).balanceOf(address(this));
         currentGasBalance = IERC20(gasAsset).balanceOf(address(this));
 
-        require(currentTradeBalance >= tradeOwed, "AfetiDevran: Ticari borc geri odemesi yetersiz!");
-        require(currentGasBalance >= gasOwed, "AfetiDevran: Gas borc geri odemesi yetersiz!");
+        require(currentTradeBalance >= tradeOwed, "Insufficient trade balance for repayment");
+        require(currentGasBalance >= gasOwed, "Insufficient gas balance for repayment");
 
-        // Aave havuzunu geri ödemeler için yetkilendir
         IERC20(tradeAsset).approve(address(POOL), tradeOwed);
         IERC20(gasAsset).approve(address(POOL), gasOwed);
 
-        // --- AFETİ DEVRAN V5 GERÇEK ARBITRAJ LOGIC ---
+        // Step 4: Check profit and handle Kill Switch
         uint256 profit = currentTradeBalance - tradeOwed - startTradeBalance;
-        require(
-            profit > 0,
-            "AfetiDevran: Arbitrage must be profitable! Insufficient spread or excessive slippage."
-        );
-        emit ArbitrajBasarili(profit, tradeAsset);
 
-        // Net kârın kontrat sahibinin cüzdanına transfer edilmesi
+        if (profit <= 0) {
+            failureCount++;
+            emit FailureLogged("Negative arbitrage profit", failureCount);
+
+            if (failureCount >= 3) {
+                isStopped = true;
+                emit KillSwitchActivated(failureCount);
+                revert("Kill Switch triggered - 3 failed attempts");
+            }
+            revert("Arbitrage unprofitable - insufficient spread or excessive slippage");
+        }
+
+        failureCount = 0;
+        emit ArbitrageSuccess(profit, tradeAsset);
+
         uint256 netProfit = currentTradeBalance - tradeOwed;
         if (netProfit > 0) {
             IERC20(tradeAsset).transfer(owner, netProfit);
         }
 
-        // Kalan ekstra POL (Gas) varsa sahibine aktar
         uint256 extraGas = currentGasBalance - gasOwed;
         if (extraGas > 0) {
             IERC20(gasAsset).transfer(owner, extraGas);
@@ -284,12 +251,15 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
         return true;
     }
 
-    /**
-     * @notice Kontrat içinde kilitli kalan acil tokenları geri çekmek için kurtarma fonksiyonu
-     */
+    function resetKillSwitch() external onlyOwner {
+        require(isStopped, "Kill Switch is not active");
+        isStopped = false;
+        failureCount = 0;
+    }
+
     function withdrawToken(address token) external onlyOwner {
         uint256 balance = IERC20(token).balanceOf(address(this));
-        require(balance > 0, "AfetiDevran: Cekilecek token bulunamadi");
+        require(balance > 0, "No tokens to withdraw");
         IERC20(token).transfer(owner, balance);
     }
 }
