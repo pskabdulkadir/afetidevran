@@ -208,7 +208,7 @@ process.on("unhandledRejection", (reason: any) => {
 // Varsayılan Bot Yapılandırması (AFETİ DEVRAN V5 - ÇOKLU VARLIK DESTEKLİ)
 let botConfig = {
   polygonRpcUrl: rpcPool[activeRpcIndex],
-  minSpreadThreshold: 1.5, // %1.5 Varsayılan kârlılık sınırı - Gas maliyetini karşılamak için
+  minSpreadThreshold: 1.0, // %1.0 Varsayılan kârlılık sınırı - Gas maliyetini karşılamak için (MIN_PROFIT_THRESHOLD ile birlikte)
   borrowAmountUsd: 250000,  // Başlangıç borç seviyesi: 250,000 USDC
   gasToBorrowPol: 5, // Aave V3'ten ödünç alınacak POL (gas) miktarı
   isRunning: true,
@@ -226,8 +226,19 @@ let botConfig = {
   minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.01") // Minimum net profit in USD for execution
 };
 
-// Debug: Environment variables check
-console.log(`[BOT_CONFIG_DEBUG] SKIP_PROFIT_CHECK=${process.env.SKIP_PROFIT_CHECK} | skipProfitCheck=${botConfig.skipProfitCheck} | MAX_GAS_THRESHOLD=${process.env.MAX_GAS_THRESHOLD} | MIN_PROFIT_THRESHOLD=${process.env.MIN_PROFIT_THRESHOLD || "0.5"} | minSpreadThreshold=${botConfig.minSpreadThreshold}%`);
+// Debug: Complete Configuration Report at Startup
+console.log("═════════════════════════════════════════════════════════════════");
+console.log("[AFETI DEVRAN V5] 🤖 BOT KONFIGÜRASYON RAPORU");
+console.log("═════════════════════════════════════════════════════════════════");
+console.log(`[ENV] CONTRACT_ADDRESS: ${botConfig.contractAddress}`);
+console.log(`[ENV] MIN_PROFIT_THRESHOLD: $${botConfig.minProfitThreshold} USD`);
+console.log(`[ENV] MAX_GAS_THRESHOLD: ${botConfig.maxGasThreshold} gwei`);
+console.log(`[ENV] SKIP_PROFIT_CHECK: ${botConfig.skipProfitCheck} (${process.env.SKIP_PROFIT_CHECK || "not set"})`);
+console.log(`[CONFIG] minSpreadThreshold: ${botConfig.minSpreadThreshold}%`);
+console.log(`[CONFIG] borrowAmountUsd: $${botConfig.borrowAmountUsd}`);
+console.log(`[CONFIG] automaticExecution: ${botConfig.automaticExecution}`);
+console.log(`[CONFIG] isRunning: ${botConfig.isRunning}`);
+console.log("═════════════════════════════════════════════════════════════════");
 
 // Canlı DEX Router adresleri ve getAmountsOut için resmi ABI deklarasyonu
 const DEX_ADDRESSES = {
@@ -1105,7 +1116,7 @@ app.post("/api/reset", (req, res) => {
   // Reset bot config to initial default parameters
   botConfig = {
     polygonRpcUrl: rpcPool[0],
-    minSpreadThreshold: 0.8,
+    minSpreadThreshold: 1.0,
     borrowAmountUsd: 250000,
     gasToBorrowPol: 5,
     isRunning: true,
@@ -1115,7 +1126,12 @@ app.post("/api/reset", (req, res) => {
     latencyThresholdMs: 800,
     omniChainEnabled: false,
     dynamicBatchingEnabled: false,
-    mempoolScanningEnabled: false
+    mempoolScanningEnabled: false,
+    contractAddress: process.env.CONTRACT_ADDRESS || "0x0000000000000000000000000000000000000000",
+    forceExecutionThreshold: parseFloat(process.env.FORCE_EXECUTION_THRESHOLD || "0"),
+    skipProfitCheck: (process.env.SKIP_PROFIT_CHECK || "").toLowerCase() === "true",
+    maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "500000"),
+    minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.01")
   };
 
   activeRpcIndex = 0;
