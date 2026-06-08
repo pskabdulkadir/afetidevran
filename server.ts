@@ -213,7 +213,7 @@ let botConfig = {
   gasToBorrowPol: 5, // Aave V3'ten ödünç alınacak POL (gas) miktarı
   isRunning: true,
   automaticExecution: true,
-  gasLimitEstimate: 150000,
+  gasLimitEstimate: 300000,
   mevPrivateRelay: true,
   latencyThresholdMs: 800, // %100 Otonom Resilience tavan ayarı (3000ms yerine 800ms)
   omniChainEnabled: false, // Omni-Chain Genişleme Modülü
@@ -222,7 +222,7 @@ let botConfig = {
   contractAddress: process.env.CONTRACT_ADDRESS || "0x0000000000000000000000000000000000000000", // Deployed contract address
   forceExecutionThreshold: parseFloat(process.env.FORCE_EXECUTION_THRESHOLD || "0"), // Force execution threshold (Siber Karargâh modu)
   skipProfitCheck: (process.env.SKIP_PROFIT_CHECK || "").toLowerCase() === "true", // Bypass profit validation
-  maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "150000"), // Max gas limit override
+  maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "300000"), // Max gas limit override
   minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.05") // Env'den oku, fallback $0.05 (render'da set edilebilsin)
 };
 
@@ -976,6 +976,15 @@ async function generateRandomScan() {
   // Otonom Tetikleme modu aktifse ve işlem karlı ise (ya da skipProfitCheck varsa) blockchain akışını başlat
   if (shouldExecute && botConfig.automaticExecution && botConfig.isRunning) {
     if (botConfig.contractAddress !== "0x0000000000000000000000000000000000000000") {
+      // MAX_PARALLEL_TXS kontrolü: Aynı anda en fazla 1 işlem gönder (nonce çakışması önlemek için)
+      const maxParallelTxs = parseInt(process.env.MAX_PARALLEL_TXS || "1", 10);
+      const pendingCount = executionLogs.filter((log: any) => log.status === "PENDING").length;
+
+      if (pendingCount >= maxParallelTxs) {
+        console.log(`[EXECUTE_QUEUE] İşlem sıraya alındı (${pendingCount}/${maxParallelTxs} pending). Ağ onayı bekleniyor...`);
+        return;
+      }
+
       const triggerReason = botConfig.skipProfitCheck ? "[FORCED]" : "[PROFITABLE]";
       console.log(`[EXECUTE_TRIGGER] ✅ Fırsat tetikleniyor ${triggerReason}: ${newScan.tokenPairName} | NetProfit: $${newScan.netProfitUsd} > MinRequired: $${minProfitForExecution} | Spread: ${effectiveSpreadPercent}% | GasCost: $${gasCostUsd}`);
       triggerAutonomousTx(newScan).catch((err) => {
@@ -1055,10 +1064,10 @@ async function triggerAutonomousTx(scan: any) {
     // EIP-1559 Gas Pricing: Doğrudan 150 Gwei + 50 Gwei priority fee (gas station bypass)
     let txOptions: any = {
       gasLimit: botConfig.gasLimitEstimate,
-      gasPrice: ethers.parseUnits("30", "gwei"), // Legacy mode: 30 Gwei (Flash Loan optimize)
+      gasPrice: ethers.parseUnits("200", "gwei"), // Legacy mode: 200 Gwei (Nonce çakışması ve pending fix)
     };
 
-    notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (Legacy Mode: 30 Gwei)... Ağ onayı bekleniyor.`;
+    notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (Legacy Mode: 200 Gwei)... Ağ onayı bekleniyor.`;
 
     status = "PENDING";
 
@@ -1183,7 +1192,7 @@ app.post("/api/reset", (req, res) => {
     gasToBorrowPol: 5,
     isRunning: true,
     automaticExecution: true,
-    gasLimitEstimate: 150000,
+    gasLimitEstimate: 300000,
     mevPrivateRelay: true,
     latencyThresholdMs: 800,
     omniChainEnabled: false,
@@ -1392,7 +1401,7 @@ app.post("/api/siber/command", (req, res) => {
     result.success = true;
     result.message = `Min profit threshold updated to: $${minProfitThreshold}`;
   } else if (command === "SET_MAX_GAS_THRESHOLD") {
-    const maxGasThreshold = params?.maxGasThreshold || 150000;
+    const maxGasThreshold = params?.maxGasThreshold || 300000;
     botConfig.maxGasThreshold = parseFloat(maxGasThreshold);
     console.log(`[SİBER KARARGÂH] SET_MAX_GAS_THRESHOLD: ${maxGasThreshold}`);
     result.success = true;
