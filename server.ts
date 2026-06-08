@@ -1539,30 +1539,35 @@ setInterval(async () => {
                 console.log(`[REPLACEMENT_TX] Nonce ${pendingNonce} ile replacement TX gönderiliyor (1200 Gwei)...`);
 
                 try {
-                  const replTx = await wallet.sendTransaction({
+                  // Raw TX ile gas station bypass: Sign → RPC Send
+                  const txObject = {
                     to: wallet.address,
                     value: 0n,
                     nonce: pendingNonce,
                     gasLimit: 21000n,
                     gasPrice: gasPrice,
                     data: "0x",
-                    type: 0 // Legacy TX, EIP-1559 bypass
-                  });
+                    chainId: 137,
+                    type: 0
+                  };
 
-                  console.log(`[REPLACEMENT_TX_SUCCESS] Nonce ${pendingNonce}: ${replTx.hash.slice(0, 10)}...`);
+                  const signedTx = await wallet.signTransaction(txObject);
+                  const txHash = await rpcProvider.send("eth_sendRawTransaction", [signedTx]);
+
+                  console.log(`[REPLACEMENT_TX_SUCCESS] Nonce ${pendingNonce}: ${txHash.slice(0, 10)}...`);
                   tx.status = "REPLACEMENT_SENT";
-                  tx.notes = `Replacement sent`;
+                  tx.notes = `Replacement sent (raw TX)`;
                 } catch (sendErr: any) {
                   const errMsg = sendErr.message || String(sendErr);
                   console.warn(`[REPLACEMENT_TX_SEND_ERROR] ${errMsg}`);
 
                   // Gas station error'ı detect et ve bypass et
                   if (errMsg.includes("gas station") || errMsg.includes("JSON")) {
-                    console.warn(`[REPLACEMENT_TX] Send sırasında gas station hatası (bypassed)`);
+                    console.warn(`[REPLACEMENT_TX] Send sırasında gas station hatası (raw TX bypass)`);
                     tx.status = "REPLACEMENT_ATTEMPTED";
-                    tx.notes = `Replacement attempted (gas station error)`;
+                    tx.notes = `Replacement attempted (raw TX, gas station error)`;
                   } else if (errMsg.includes("nonce") || errMsg.includes("already")) {
-                    console.warn(`[REPLACEMENT_TX] Nonce çakışması (işlem zaten minPool'da): ${errMsg.slice(0, 50)}`);
+                    console.warn(`[REPLACEMENT_TX] Nonce çakışması (işlem zaten minPool'da)`);
                     tx.status = "REPLACEMENT_SKIPPED";
                     tx.notes = `Already in mempool`;
                   } else {
