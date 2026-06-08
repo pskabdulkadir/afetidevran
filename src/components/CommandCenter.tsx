@@ -7,14 +7,18 @@ interface CommandCenterProps {
   minProfitThreshold?: number;
   maxGasThreshold?: number;
   skipProfitCheck?: boolean;
+  gasPriorityFee?: number;
+  gasMaxFee?: number;
 }
 
 export default function CommandCenter({
   contractAddress = "0x0000000000000000000000000000000000000000",
   forceExecutionThreshold = 0,
-  minProfitThreshold = 0.01,
+  minProfitThreshold = 1.00,
   maxGasThreshold = 500000,
-  skipProfitCheck = false
+  skipProfitCheck = false,
+  gasPriorityFee = 50,
+  gasMaxFee = 250
 }: CommandCenterProps) {
   const [commands, setCommands] = useState<Array<{ command: string; timestamp: string; status: "pending" | "success" | "error"; message: string }>>([]);
   const [loading, setLoading] = useState(false);
@@ -250,6 +254,25 @@ export default function CommandCenter({
         </button>
       </div>
 
+      {/* GAS PRICING STATUS */}
+      <div className="bg-slate-950 p-4 rounded-lg border border-amber-800 space-y-3">
+        <div>
+          <span className="text-xs font-black text-amber-400 uppercase tracking-wider block mb-2">⛽ EIP-1559 GAS PRİCİNG DURUMU</span>
+          <p className="text-[11px] text-slate-400 mb-2">Sistem otomatik olarak ağ koşullarına göre gas fee'yi ayarlıyor.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="bg-slate-900 p-2 rounded border border-amber-700">
+            <span className="text-slate-400 text-[10px]">Priority Fee</span>
+            <div className="font-mono text-amber-300 font-bold">{gasPriorityFee} Gwei</div>
+          </div>
+          <div className="bg-slate-900 p-2 rounded border border-amber-700">
+            <span className="text-slate-400 text-[10px]">Max Fee Cap</span>
+            <div className="font-mono text-amber-300 font-bold">{gasMaxFee} Gwei</div>
+          </div>
+        </div>
+        <p className="text-[10px] text-slate-500">✅ Mode: EIP-1559 (Dinamik) + Legacy Fallback (150 Gwei)</p>
+      </div>
+
       {/* ENVIRONMENT VARIABLES SETTINGS */}
       <div className="border-t border-slate-800 pt-4 mt-4">
         <h4 className="text-xs font-black text-yellow-500 uppercase tracking-wider mb-4">⚙️ ORTAM DEĞİŞKENLERİ (Environment Variables)</h4>
@@ -258,7 +281,8 @@ export default function CommandCenter({
         <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 space-y-3 mb-3">
           <div>
             <span className="text-xs font-black text-slate-300 uppercase tracking-wider block mb-2">Minimum Kâr Eşiği (MIN_PROFIT_THRESHOLD)</span>
-            <p className="text-[11px] text-slate-400 mb-3">İşlem başlatılması için gerekli minimum net kâr (USD). Varsayılan: $0.01</p>
+            <p className="text-[11px] text-slate-400 mb-3">İşlem başlatılması için gerekli minimum net kâr (USD). EIP-1559 dinamik gas ile $0.40-0.80 maliyetini karşılamak için varsayılan: $1.00</p>
+            <p className="text-[10px] text-yellow-400 mt-2">⚠️ Düşük ayarlarken dikkat: Gas maliyeti $0.50+ olabilir, işlem kayıpla sonlanabilir.</p>
           </div>
           <div className="flex gap-2">
             <input
@@ -319,7 +343,7 @@ export default function CommandCenter({
           <div>
             <span className="text-xs font-black text-slate-300 uppercase tracking-wider block mb-2">Kârlılık Kontrolünü Atla (SKIP_PROFIT_CHECK)</span>
             <p className="text-[11px] text-slate-400 mb-3">Etkinleştirilirse, bot kâr kontrolü yapmadan tüm işlemleri tetikler. UYARI: Risklidir!</p>
-            <p className="text-[10px] text-slate-500 mt-2">Mevcut Durum: <span className={skipProfitValue ? "text-rose-400 font-bold" : "text-emerald-400 font-bold"}>{skipProfitValue ? "DEVRE DIŞI (Risk Modu)" : "AKTİF (Güvenli Mod)"}</span></p>
+            <p className="text-[10px] text-slate-500 mt-2">Mevcut Durum: <span className={skipProfitValue ? "text-rose-500 font-bold" : "text-emerald-500 font-bold"}>{skipProfitValue ? "🔓 DEVRE DIŞI - RISK MODU (Her kârda tetikle)" : "🔒 AKTİF - GÜVENLI MOD (MIN_PROFIT kontrolü aktif)"}</span></p>
           </div>
           <button
             onClick={executeToggleSkipProfitCheck}

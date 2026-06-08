@@ -32,7 +32,7 @@ export interface BotConfig {
   gasToBorrowPol: number; // e.g. 5
   isRunning: boolean;
   automaticExecution: boolean;
-  gasLimitEstimate: number; // e.g. 360000;
+  gasLimitEstimate: number; // e.g. 500000 (flash loan için yüksek)
   mevPrivateRelay: boolean;
   latencyThresholdMs: number; // e.g. 800
   omniChainEnabled: boolean;
@@ -41,8 +41,10 @@ export interface BotConfig {
   contractAddress?: string; // Deployed arbitrage contract address
   forceExecutionThreshold?: number; // Force execution threshold (Siber Karargâh mode)
   skipProfitCheck?: boolean; // Skip profitability checks
-  maxGasThreshold?: number; // Maximum gas limit
-  minProfitThreshold?: number; // Minimum profit threshold in USD
+  maxGasThreshold?: number; // Maximum gas limit (500000)
+  minProfitThreshold?: number; // Minimum profit threshold in USD ($1.00 for EIP-1559)
+  gasPriorityFee?: number; // EIP-1559 priority fee (Gwei) - e.g. 50
+  gasMaxFee?: number; // EIP-1559 max fee cap (Gwei) - e.g. 250
 }
 
 export enum LogStatus {

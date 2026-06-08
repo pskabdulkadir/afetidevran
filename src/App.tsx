@@ -685,6 +685,8 @@ export default function App() {
               minProfitThreshold={config.minProfitThreshold}
               maxGasThreshold={config.maxGasThreshold}
               skipProfitCheck={config.skipProfitCheck}
+              gasPriorityFee={50}
+              gasMaxFee={250}
             />
           </div>
         ) : (
