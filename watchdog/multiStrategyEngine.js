@@ -1,6 +1,7 @@
 import { ethers } from "ethers";
 import dotenv from "dotenv";
 import express from "express";
+import logger from "./logger.js";
 
 dotenv.config();
 
@@ -111,7 +112,7 @@ class MultiStrategyEngine {
       startTime: Date.now(),
     };
 
-    console.log("✅ Multi-Strategy Engine initialized");
+    logger.info("✅ Multi-Strategy Engine initialized");
   }
 
   /**
@@ -142,7 +143,7 @@ class MultiStrategyEngine {
       this.stats.scansTotal++;
       this.checkForOpportunities();
 
-      console.log(`📊 Scanned ${this.stats.scansTotal} times | Opportunities: ${this.stats.opportunitiesFound}`);
+      logger.info(`📊 Scanned ${this.stats.scansTotal} times | Opportunities: ${this.stats.opportunitiesFound}`);
     } catch (error) {
       console.error("❌ Scan error:", error.message);
     }
@@ -269,10 +270,10 @@ class MultiStrategyEngine {
     this.marketData.opportunities = opportunities;
 
     if (opportunities.length > 0) {
-      console.log(`\n💰 OPPORTUNITIES DETECTED: ${opportunities.length}`);
+      logger.info(`💰 OPPORTUNITIES DETECTED: ${opportunities.length}`);
       opportunities.forEach(opp => {
         const riskIcon = opp.riskLevel === "HIGH" ? "⚠️" : "✅";
-        console.log(`   ${riskIcon} ${opp.pair}: Spread ${opp.spread}% → ${opp.profitEstimate}`);
+        logger.info(`   ${riskIcon} ${opp.pair}: Spread ${opp.spread}% → ${opp.profitEstimate}`);
       });
     }
   }
@@ -314,7 +315,7 @@ class MultiStrategyEngine {
         this.signer.address
       );
       this.nonceManager.pendingNonce = this.nonceManager.currentNonce;
-      console.log(`✅ Nonce Manager initialized (Current: ${this.nonceManager.currentNonce})`);
+      logger.info(`✅ Nonce Manager initialized (Current: ${this.nonceManager.currentNonce})`);
     } catch (error) {
       console.error("❌ Nonce initialization failed:", error.message);
     }
@@ -416,9 +417,9 @@ class MultiStrategyEngine {
    * 🚀 START ENGINE
    */
   async start() {
-    console.log("\n=================================================");
-    console.log("🚀 MULTI-STRATEGY ENGINE STARTING");
-    console.log("=================================================\n");
+    logger.info("=================================================");
+    logger.info("🚀 MULTI-STRATEGY ENGINE STARTING");
+    logger.info("=================================================");
 
     await this.initializeNonceManager();
 
@@ -428,7 +429,7 @@ class MultiStrategyEngine {
     // Initial scan
     await this.scanAllPairs();
 
-    console.log("✅ Engine started - Scanning all pairs...\n");
+    logger.info("✅ Engine started - Scanning all pairs...");
   }
 }
 
@@ -475,10 +476,11 @@ app.get("/opportunities", (req, res) => {
 
 const PORT = process.env.PORT || 3003;
 app.listen(PORT, () => {
-  console.log(`\n📊 Dashboard: http://localhost:${PORT}/report`);
-  console.log(`💚 Health: http://localhost:${PORT}/health`);
-  console.log(`📈 Pairs: http://localhost:${PORT}/pairs`);
-  console.log(`💰 Opportunities: http://localhost:${PORT}/opportunities\n`);
+  logger.info(`📊 Dashboard: http://localhost:${PORT}/report`);
+  logger.info(`💚 Health: http://localhost:${PORT}/health`);
+  logger.info(`📈 Pairs: http://localhost:${PORT}/pairs`);
+  logger.info(`💰 Opportunities: http://localhost:${PORT}/opportunities`);
+  logger.info(`📁 Logs saved to: ./logs/`);
 });
 
 export default MultiStrategyEngine;
