@@ -213,7 +213,7 @@ let botConfig = {
   gasToBorrowPol: 5, // Aave V3'ten ödünç alınacak POL (gas) miktarı
   isRunning: true,
   automaticExecution: true,
-  gasLimitEstimate: 360000,
+  gasLimitEstimate: 500000,
   mevPrivateRelay: true,
   latencyThresholdMs: 800, // %100 Otonom Resilience tavan ayarı (3000ms yerine 800ms)
   omniChainEnabled: false, // Omni-Chain Genişleme Modülü
@@ -223,7 +223,7 @@ let botConfig = {
   forceExecutionThreshold: parseFloat(process.env.FORCE_EXECUTION_THRESHOLD || "0"), // Force execution threshold (Siber Karargâh modu)
   skipProfitCheck: (process.env.SKIP_PROFIT_CHECK || "").toLowerCase() === "true", // Bypass profit validation
   maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "500000"), // Max gas limit override
-  minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.01") // Minimum net profit in USD for execution
+  minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "1.00") // Minimum net profit in USD for execution (EIP-1559 gas pricing ile $0.40-0.80 karşılamak için)
 };
 
 // Debug: Complete Configuration Report at Startup
@@ -231,13 +231,15 @@ console.log("══════════════════════�
 console.log("[AFETI DEVRAN V5] 🤖 BOT KONFIGÜRASYON RAPORU");
 console.log("═════════════════════════════════════════════════════════════════");
 console.log(`[ENV] CONTRACT_ADDRESS: ${botConfig.contractAddress}`);
-console.log(`[ENV] MIN_PROFIT_THRESHOLD: $${botConfig.minProfitThreshold} USD`);
+console.log(`[ENV] MIN_PROFIT_THRESHOLD: $${botConfig.minProfitThreshold} USD (EIP-1559 dinamik gas ile)`);
 console.log(`[ENV] MAX_GAS_THRESHOLD: ${botConfig.maxGasThreshold} gwei`);
+console.log(`[CONFIG] gasLimitEstimate: ${botConfig.gasLimitEstimate} (flash loan için yüksek)`);
 console.log(`[ENV] SKIP_PROFIT_CHECK: ${botConfig.skipProfitCheck} (${process.env.SKIP_PROFIT_CHECK || "not set"})`);
 console.log(`[CONFIG] minSpreadThreshold: ${botConfig.minSpreadThreshold}%`);
 console.log(`[CONFIG] borrowAmountUsd: $${botConfig.borrowAmountUsd}`);
 console.log(`[CONFIG] automaticExecution: ${botConfig.automaticExecution}`);
 console.log(`[CONFIG] isRunning: ${botConfig.isRunning}`);
+console.log(`[GAS PRICING] Mode: EIP-1559 (Dinamik) + Legacy Fallback (150 Gwei)`);
 console.log("═════════════════════════════════════════════════════════════════");
 
 // Canlı DEX Router adresleri ve getAmountsOut için resmi ABI deklarasyonu
@@ -319,7 +321,13 @@ async function fetchOnChainDexPrice(
 }
 
 // KESİN GAS PRICE SABITÎ - POLYGON GAS STATION API'SİNİ TAMAMEN BYPASS ET
-// Madencilerin işlemi hızlıca seçmesi için 150 Gwei kullanıyoruz
+// EIP-1559 Gas Pricing: Dynamic base fee + priority fee
+// Fallback: 150 Gwei (eski method)
+let dynamicGasConfig = {
+  baseFeeBuffer: 1.2, // Base fee'ye %20 buffer ekle
+  priorityFee: ethers.parseUnits("50", "gwei"), // Priority fee (miner tip): 50 Gwei
+  maxGasPrice: ethers.parseUnits("250", "gwei") // Maksimum kabul edilebilir gas price
+};
 const FIXED_GAS_PRICE = ethers.parseUnits("150", "gwei");
 
 // Canlı Token Üretim Fiyatları Portu (CoinGecko Feed)
@@ -524,8 +532,21 @@ async function updateEthersBalances() {
         const tempProvider = new ethers.JsonRpcProvider(botConfig.polygonRpcUrl || rpcPool[0], 137, { staticNetwork: true });
         const blockNum = await runWithTimeout(tempProvider.getBlockNumber(), 1500);
         currentBlock = blockNum;
-        // Gas price sabit değer - 150 Gwei (işlem hızlandırma)
-        currentGasPriceGwei = 150;
+        // Gas price dinamik - ağ koşullarına göre ayarlanıyor
+        // EIP-1559: base fee + priority fee
+        try {
+          const feeData = await rpcProvider.getFeeData();
+          if (feeData?.gasPrice) {
+            const gasPriceInGwei = parseFloat(ethers.formatUnits(feeData.gasPrice, "gwei"));
+            currentGasPriceGwei = Math.min(gasPriceInGwei * 1.1, 250); // %10 buffer ile, max 250 Gwei
+            if (feeData?.maxFeePerGas) {
+              currentBaseFeeGwei = parseFloat(ethers.formatUnits(feeData.maxFeePerGas, "gwei"));
+            }
+          }
+        } catch (gasFetchErr) {
+          console.log("[Gas Fetch Fallback] getFeeData hatası, 150 Gwei kullanılıyor");
+          currentGasPriceGwei = 150;
+        }
       } catch (err) {
         // Sessiz hata
       }
@@ -560,8 +581,16 @@ async function updateEthersBalances() {
         const blockNum = await runWithTimeout(provider.getBlockNumber(), 1500);
         currentBlock = blockNum;
 
-        // Gas fiyatı sabit değer - 150 Gwei (işlem hızlandırma)
-        currentGasPriceGwei = 150;
+        // Gas fiyatı dinamik - ağ koşullarına göre ayarlanıyor
+        try {
+          const feeData = await rpcProvider.getFeeData();
+          if (feeData?.gasPrice) {
+            const gasPriceInGwei = parseFloat(ethers.formatUnits(feeData.gasPrice, "gwei"));
+            currentGasPriceGwei = Math.min(gasPriceInGwei * 1.1, 250);
+          }
+        } catch (gasFetchErr) {
+          currentGasPriceGwei = 150;
+        }
 
         // 1. Native POL bakiyesini sorgula (Zaman aşımı korumalı)
         const polWei = await runWithTimeout(provider.getBalance(address), 1500);
@@ -638,7 +667,8 @@ async function updateEthersBalances() {
 
 // Gerçek zamanlı Web3 durum parametreleri
 let currentBlock = 59312019;
-let currentGasPriceGwei = 150; // Sabit gas price 150 Gwei (Polygon işlem hızlandırma için)
+let currentGasPriceGwei = 150; // Başlangıç: 150 Gwei (dinamik olarak güncelleniyor)
+let currentBaseFeeGwei = 50; // Tahmini base fee (EIP-1559)
 let MATIC_PRICE_USD = 0.38;
 
 // Taramalar ve işlem geçmişleri
@@ -1012,10 +1042,31 @@ async function triggerAutonomousTx(scan: any) {
     const tradeAmountWei = ethers.parseUnits(botConfig.borrowAmountUsd.toString(), 6);
     const gasAmountWei = ethers.parseUnits(borrowedGasPol.toString(), 18);
 
-    // Gas price - 150 Gwei (madencilerin işlemi hızlıca seçmesi için)
-    let effectiveGasPrice = 150;
+    // EIP-1559 Gas Pricing: Dinamik base fee + priority fee
+    let effectiveGasPrice = currentGasPriceGwei;
+    let txOptions: any = {
+      gasLimit: botConfig.gasLimitEstimate,
+    };
 
-    notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (Gas: ${effectiveGasPrice} Gwei)... Ağ onayı bekleniyor.`;
+    // EIP-1559 desteği varsa (Polygon destekliyor), maxFeePerGas ve maxPriorityFeePerGas kullan
+    try {
+      const feeData = await rpcProvider.getFeeData();
+      if (feeData?.maxFeePerGas && feeData?.maxPriorityFeePerGas) {
+        // EIP-1559 mode
+        txOptions.maxFeePerGas = ethers.parseUnits(Math.min(currentGasPriceGwei * 1.15, 250).toString(), "gwei");
+        txOptions.maxPriorityFeePerGas = ethers.parseUnits("50", "gwei"); // 50 Gwei miner tip
+        notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (EIP-1559 Mode: Max Fee: ${currentGasPriceGwei.toFixed(2)} Gwei)... Ağ onayı bekleniyor.`;
+      } else {
+        // Legacy mode fallback
+        txOptions.gasPrice = ethers.parseUnits(effectiveGasPrice.toString(), "gwei");
+        notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (Legacy Mode: Gas Price: ${effectiveGasPrice} Gwei)... Ağ onayı bekleniyor.`;
+      }
+    } catch (feeErr) {
+      // Fallback: Legacy gasPrice
+      txOptions.gasPrice = ethers.parseUnits(effectiveGasPrice.toString(), "gwei");
+      notes = `[GERÇEK BLOCKCHAIN TX] Aave V3 Flaş Kredisi TX'i gönderiliyor (Fallback: Gas Price: ${effectiveGasPrice} Gwei)... Ağ onayı bekleniyor.`;
+    }
+
     status = "PENDING";
 
     const tx = await contract.executeMultiFlashLoan(
@@ -1023,10 +1074,7 @@ async function triggerAutonomousTx(scan: any) {
       tradeAmountWei,
       WPOL_ADDRESS,
       gasAmountWei,
-      {
-        gasLimit: botConfig.gasLimitEstimate,
-        gasPrice: ethers.parseUnits(effectiveGasPrice.toString(), "gwei")
-      }
+      txOptions
     );
 
     txHash = tx.hash;
@@ -1122,7 +1170,7 @@ app.post("/api/reset", (req, res) => {
     gasToBorrowPol: 5,
     isRunning: true,
     automaticExecution: true,
-    gasLimitEstimate: 360000,
+    gasLimitEstimate: 500000,
     mevPrivateRelay: true,
     latencyThresholdMs: 800,
     omniChainEnabled: false,
@@ -1132,7 +1180,7 @@ app.post("/api/reset", (req, res) => {
     forceExecutionThreshold: parseFloat(process.env.FORCE_EXECUTION_THRESHOLD || "0"),
     skipProfitCheck: (process.env.SKIP_PROFIT_CHECK || "").toLowerCase() === "true",
     maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "500000"),
-    minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.01")
+    minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "1.00")
   };
 
   activeRpcIndex = 0;
