@@ -195,9 +195,11 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
 
         uint256 deadline = block.timestamp + 300;
         
+        // %0.5 slippage tolerance (Bu fiyat en az %99.5'i olmalı)
+        uint256 minBuyAmount = (tradeAmount * 995) / 1000; // 99.5%
         uint[] memory buyAmounts = IUniswapV2Router02(quickswapRouter).swapExactTokensForTokens(
             tradeAmount,
-            0, // Kayma tolerans filtrelemesi on-chain gerçekleştirilir
+            minBuyAmount,
             pathBuy,
             address(this),
             deadline
@@ -212,9 +214,11 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
         pathSell[0] = intermediaryToken;
         pathSell[1] = tradeAsset;
 
+        // %0.5 slippage tolerance
+        uint256 minSellAmount = (boughtIntermediaryAmount * 995) / 1000; // 99.5%
         uint[] memory sellAmounts = IUniswapV2Router02(sushiswapRouter).swapExactTokensForTokens(
             boughtIntermediaryAmount,
-            0,
+            minSellAmount,
             pathSell,
             address(this),
             deadline
@@ -258,14 +262,12 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
         IERC20(gasAsset).approve(address(POOL), gasOwed);
 
         // --- AFETİ DEVRAN V5 GERÇEK ARBITRAJ LOGIC ---
-        // Aave borclarından sonra kontrat bakiyesinin BAŞLANGIÇ bakiyesinden DAHA FAZLA olması gerekir
-        // Bu, arbitrajda gerçek kâr elde edildiğini kanıtlar
+        uint256 profit = currentTradeBalance - tradeOwed - startTradeBalance;
         require(
-            currentTradeBalance - tradeOwed > startTradeBalance,
+            profit > 0,
             "AfetiDevran: Arbitrage must be profitable! Insufficient spread or excessive slippage."
         );
-
-        emit ArbitrajBasarili(currentTradeBalance - tradeOwed - startTradeBalance, tradeAsset);
+        emit ArbitrajBasarili(profit, tradeAsset);
 
         // Net kârın kontrat sahibinin cüzdanına transfer edilmesi
         uint256 netProfit = currentTradeBalance - tradeOwed;
