@@ -223,7 +223,12 @@ let botConfig = {
   forceExecutionThreshold: parseFloat(process.env.FORCE_EXECUTION_THRESHOLD || "0"), // Force execution threshold (Siber Karargâh modu)
   skipProfitCheck: (process.env.SKIP_PROFIT_CHECK || "").toLowerCase() === "true", // Bypass profit validation
   maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "200000"), // Max gas limit override
-  minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.05") // Env'den oku, fallback $0.05 (render'da set edilebilsin)
+  minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.05"), // Env'den oku, fallback $0.05 (render'da set edilebilsin)
+  // GHAYALET ARBİTRAJ MODU (Sermayesiz Operasyon)
+  useFlashLoan: (process.env.USE_FLASH_LOAN || "").toLowerCase() === "true", // Tamamen flash loan'a güven
+  minCapitalRequired: parseFloat(process.env.MIN_CAPITAL_REQUIRED || "1000"), // Minimum gerekli sermaye (0 = yok)
+  clearPendingTxOnStart: (process.env.CLEAR_PENDING_TX_ON_START || "").toLowerCase() === "true", // Başlangıçta pending'leri temizle
+  forceGaslessRetry: (process.env.FORCE_GASLESS_RETRY || "").toLowerCase() === "true" // Gasless sinyali zorla
 };
 
 // Debug: Complete Configuration Report at Startup
@@ -247,6 +252,11 @@ console.log(`[CONFIG] automaticExecution: ${botConfig.automaticExecution}`);
 console.log(`[CONFIG] isRunning: ${botConfig.isRunning}`);
 console.log(`[GAS PRICING] Mode: EIP-1559 (Dinamik) + Legacy Fallback (150 Gwei)`);
 console.log(`[GAS PRICING] Fallback Price: ${process.env.GAS_PRICE ? (parseInt(process.env.GAS_PRICE) / 1e9).toFixed(0) + ' Gwei' : '150 Gwei'}`);
+console.log(`[GHAYALET ARBİTRAJ MODU]`);
+console.log(`  └─ USE_FLASH_LOAN: ${botConfig.useFlashLoan} (Tamamen flash loan'a güven)`);
+console.log(`  └─ MIN_CAPITAL_REQUIRED: $${botConfig.minCapitalRequired} (0 = sermaye yok)`);
+console.log(`  └─ CLEAR_PENDING_TX_ON_START: ${botConfig.clearPendingTxOnStart}`);
+console.log(`  └─ FORCE_GASLESS_RETRY: ${botConfig.forceGaslessRetry}`);
 console.log("═════════════════════════════════════════════════════════════════");
 
 // Canlı DEX Router adresleri ve getAmountsOut için resmi ABI deklarasyonu
@@ -1039,8 +1049,8 @@ async function triggerAutonomousTx(scan: any) {
     // Provider olmadan wallet oluştur (gas price sorgusu yapılmasını kesmek için)
     const wallet = new ethers.Wallet(cleanPk);
 
-    // AAVE FLASH LOAN GAS KAYNAĞINI KULLAN - POL KONTROL OLMADAN DEVAM ET
-    console.log(`[EXECUTE_LOG] Fırsat algılandı (${scan.tokenPairName}). Aave flash loan gas kaynağı kullanılacak. Cüzdan POL: ${walletState.pol}`);
+    // GHAYALET ARBİTRAJ: FLASH LOAN'A TAMAMEN GÜVEN
+    console.log(`[GHAYALET_ARBITRAJ] Fırsat algılandı (${scan.tokenPairName}). Flash Loan Only Mode: Tamamen Aave V3'den borç alınıyor. Cüzdan POL: ${walletState.pol} (${botConfig.useFlashLoan ? "YÜKSEK RİSK" : "KONTROLLÜ"})`);
 
     if (!botConfig.contractAddress || botConfig.contractAddress === "0x0000000000000000000000000000000000000000") {
       console.warn(`[WARNING] CONTRACT_ADDRESS geçerli değil (dummy). Render Dashboard Environment: CONTRACT_ADDRESS=0x...`);
@@ -1237,7 +1247,14 @@ app.post("/api/reset", (req, res) => {
 
   // Empty logs
   scanLogs = [];
-  executionLogs = [];
+
+  // CLEAR_PENDING_TX_ON_START: Mevcut pending işlemleri temizle
+  if (botConfig.clearPendingTxOnStart) {
+    console.log("[CLEAR_PENDING_TX_ON_START] Tüm pending işlemler temizleniyor...");
+    executionLogs = [];
+  } else {
+    executionLogs = [];
+  }
 
   // Reset nonce tracking
   walletNonce = 0;
