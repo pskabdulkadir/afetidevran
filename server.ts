@@ -1072,6 +1072,7 @@ async function triggerAutonomousTx(scan: any) {
     );
 
     txHash = tx.hash;
+    status = "PENDING";
     notes = `[TX BLOKZİNCİRE GÖNDERILDI] Hash: ${txHash.slice(0, 10)}... Ağ onayı bekleniyor...`;
 
     selfHealingLogs.unshift({
@@ -1081,32 +1082,35 @@ async function triggerAutonomousTx(scan: any) {
       type: "INFO"
     });
 
-    const receipt = await tx.wait(1);
+    // Fire-and-forget: TX'yi gönder, receipt bekleme yapma (scanning loop'u block etme)
+    // Background'da arka planda receipt sonucunu işle
+    tx.wait(1)
+      .then((receipt) => {
+        if (receipt?.status === 1) {
+          console.log(`[TX_SUCCESS_BACKGROUND] ${txHash.slice(0, 10)}... Başarılı oldu`);
+          walletState.totalRevenueUsd += scan.netProfitUsd > 0 ? scan.netProfitUsd : 0;
+          walletState.totalGasBorrowedPol += borrowedGasPol;
 
-    if (receipt?.status === 1) {
-      status = "SUCCESS";
-      notes = `[BAŞARILI] ${scan.tokenPairName} arbitrajı blockchain üzerinde başarılı oldu! TX: ${txHash}`;
-      walletState.totalRevenueUsd += scan.netProfitUsd > 0 ? scan.netProfitUsd : 0;
-      walletState.totalGasBorrowedPol += borrowedGasPol;
+          // İşlemi başarılı olarak işaretle (backend'de update)
+          const idx = executionLogs.findIndex(l => l.txHash === txHash);
+          if (idx >= 0) {
+            executionLogs[idx].status = "SUCCESS";
+            executionLogs[idx].notes = `[BAŞARILI] ${scan.tokenPairName} arbitrajı blockchain üzerinde başarılı oldu! TX: ${txHash}`;
+          }
+        } else {
+          console.log(`[TX_REVERT_BACKGROUND] ${txHash.slice(0, 10)}... Revert oldu`);
+          walletState.totalGasBorrowedPol += borrowedGasPol;
 
-      selfHealingLogs.unshift({
-        timestamp: new Date().toISOString(),
-        title: "Web3 İşlemi Başarı ile Tamamlandı",
-        desc: `Blok zincirde onaylandı. Kazanç gerçekleştirildi.`,
-        type: "RESOLVED"
+          const idx = executionLogs.findIndex(l => l.txHash === txHash);
+          if (idx >= 0) {
+            executionLogs[idx].status = "FAILED_REVERT";
+            executionLogs[idx].notes = `[REVERT HATASI] Kontrat şartı veya slippage yüzünden başarısız. TX: ${txHash}`;
+          }
+        }
+      })
+      .catch((err) => {
+        console.error(`[TX_WAIT_ERROR] ${txHash.slice(0, 10)}...:`, err.message);
       });
-    } else {
-      status = "FAILED_REVERT";
-      notes = `[REVERT HATASI] Blockchain TX başarısız oldu (kontrat şartı veya slippage). TX: ${txHash}`;
-      walletState.totalGasBorrowedPol += borrowedGasPol;
-
-      selfHealingLogs.unshift({
-        timestamp: new Date().toISOString(),
-        title: "Web3 İşlemi Revert Oldu",
-        desc: `Kontrat güvenlik şartı veya fiyat kaymması yüzünden işlem iptal edildi. Borçlar Aave'ye iade edildi.`,
-        type: "WARNING"
-      });
-    }
 
   } catch (err: any) {
     // Gas station API hatasını sessizce yoksay (ethers.js arka plan sorgusu)
