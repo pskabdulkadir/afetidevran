@@ -47,20 +47,14 @@ export interface BotConfig {
   gasMaxFee?: number; // EIP-1559 max fee cap (Gwei) - e.g. 250
 }
 
-export enum LogStatus {
-  SUCCESS = "SUCCESS",
-  FAILED_REVERT_PREVENTED = "FAILED_REVERT_PREVENTED",
-  SKIPPED_GAS = "SKIPPED_GAS",
-  BROADCAST_REVERTED = "BROADCAST_REVERTED",
-  SCANNING = "SCANNING"
-}
+export type ExecutionLogStatus = "PENDING" | "SUCCESS" | "FAILED" | "FAILED_REVERT" | "FAILED_REVERT_PREVENTED" | "SKIPPED_GAS" | "BROADCAST_REVERTED" | "SCANNING";
 
 export interface ExecutionLog {
   id: string;
   timestamp: string;
   tokenPairId: string;
   tokenPairName: string;
-  status: LogStatus;
+  status: ExecutionLogStatus;
   txHash?: string;
   borrowedAmountUsd: number;
   gasBorrowedPol: number; // Aave V5'ten otonom sızdırılan gaz POL miktarı

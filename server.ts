@@ -1073,7 +1073,8 @@ async function triggerAutonomousTx(scan: any) {
 
     txHash = tx.hash;
     status = "PENDING";
-    notes = `[TX BLOKZİNCİRE GÖNDERILDI] Hash: ${txHash.slice(0, 10)}... Ağ onayı bekleniyor...`;
+    const txHashShort = txHash.slice(0, 10);
+    notes = `[TX BLOKZİNCİRE GÖNDERILDI] Hash: ${txHashShort}... Ağ onayı bekleniyor...`;
 
     selfHealingLogs.unshift({
       timestamp: new Date().toISOString(),
@@ -1084,32 +1085,34 @@ async function triggerAutonomousTx(scan: any) {
 
     // Fire-and-forget: TX'yi gönder, receipt bekleme yapma (scanning loop'u block etme)
     // Background'da arka planda receipt sonucunu işle
+    const capturedTxHash = txHash; // Closure içinde txHash referansını yakala
+    const capturedScanName = scan.tokenPairName;
     tx.wait(1)
       .then((receipt) => {
         if (receipt?.status === 1) {
-          console.log(`[TX_SUCCESS_BACKGROUND] ${txHash.slice(0, 10)}... Başarılı oldu`);
+          console.log(`[TX_SUCCESS_BACKGROUND] ${capturedTxHash.slice(0, 10)}... Başarılı oldu`);
           walletState.totalRevenueUsd += scan.netProfitUsd > 0 ? scan.netProfitUsd : 0;
           walletState.totalGasBorrowedPol += borrowedGasPol;
 
           // İşlemi başarılı olarak işaretle (backend'de update)
-          const idx = executionLogs.findIndex(l => l.txHash === txHash);
+          const idx = executionLogs.findIndex(l => l.txHash === capturedTxHash);
           if (idx >= 0) {
             executionLogs[idx].status = "SUCCESS";
-            executionLogs[idx].notes = `[BAŞARILI] ${scan.tokenPairName} arbitrajı blockchain üzerinde başarılı oldu! TX: ${txHash}`;
+            executionLogs[idx].notes = `[BAŞARILI] ${capturedScanName} arbitrajı blockchain üzerinde başarılı oldu! TX: ${capturedTxHash}`;
           }
         } else {
-          console.log(`[TX_REVERT_BACKGROUND] ${txHash.slice(0, 10)}... Revert oldu`);
+          console.log(`[TX_REVERT_BACKGROUND] ${capturedTxHash.slice(0, 10)}... Revert oldu`);
           walletState.totalGasBorrowedPol += borrowedGasPol;
 
-          const idx = executionLogs.findIndex(l => l.txHash === txHash);
+          const idx = executionLogs.findIndex(l => l.txHash === capturedTxHash);
           if (idx >= 0) {
             executionLogs[idx].status = "FAILED_REVERT";
-            executionLogs[idx].notes = `[REVERT HATASI] Kontrat şartı veya slippage yüzünden başarısız. TX: ${txHash}`;
+            executionLogs[idx].notes = `[REVERT HATASI] Kontrat şartı veya slippage yüzünden başarısız. TX: ${capturedTxHash}`;
           }
         }
       })
       .catch((err) => {
-        console.error(`[TX_WAIT_ERROR] ${txHash.slice(0, 10)}...:`, err.message);
+        console.error(`[TX_WAIT_ERROR] ${capturedTxHash.slice(0, 10)}...:`, err.message);
       });
 
   } catch (err: any) {

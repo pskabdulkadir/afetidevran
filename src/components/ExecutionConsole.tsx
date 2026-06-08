@@ -1,33 +1,33 @@
 import React from "react";
 import { ListFilter, ExternalLink, ShieldAlert, Cpu, CheckCircle2, AlertOctagon, HelpCircle } from "lucide-react";
-import { ExecutionLog, LogStatus } from "../types";
+import { ExecutionLog, ExecutionLogStatus } from "../types";
 
 interface ExecutionConsoleProps {
   logs: ExecutionLog[];
 }
 
 export default function ExecutionConsole({ logs }: ExecutionConsoleProps) {
-  const getStatusBadge = (status: LogStatus) => {
+  const getStatusBadge = (status: ExecutionLogStatus) => {
     switch (status) {
-      case LogStatus.SUCCESS:
+      case "SUCCESS":
         return (
           <span className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-500/20 font-bold text-xs uppercase">
             <CheckCircle2 className="w-3.5 h-3.5" /> Başarılı İşlem
           </span>
         );
-      case LogStatus.SKIPPED_GAS:
+      case "SKIPPED_GAS":
         return (
           <span className="inline-flex items-center gap-1.5 bg-slate-800 text-slate-400 px-2.5 py-1 rounded-full border border-slate-700 text-xs uppercase">
             <Cpu className="w-3.5 h-3.5" /> Ön Kontrol İptal
           </span>
         );
-      case LogStatus.FAILED_REVERT_PREVENTED:
+      case "FAILED_REVERT_PREVENTED":
         return (
           <span className="inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-full border border-amber-500/20 text-xs uppercase">
             <ShieldAlert className="w-3.5 h-3.5" /> Zırh Devrede (Revert)
           </span>
         );
-      case LogStatus.BROADCAST_REVERTED:
+      case "BROADCAST_REVERTED":
         return (
           <span className="inline-flex items-center gap-1.5 bg-rose-500/10 text-rose-400 px-2.5 py-1 rounded-full border border-rose-500/20 text-xs font-semibold uppercase">
             <AlertOctagon className="w-3.5 h-3.5" /> Sapma İptali
@@ -42,13 +42,13 @@ export default function ExecutionConsole({ logs }: ExecutionConsoleProps) {
     }
   };
 
-  const getLogClasses = (status: LogStatus) => {
+  const getLogClasses = (status: ExecutionLogStatus) => {
     switch (status) {
-      case LogStatus.SUCCESS:
+      case "SUCCESS":
         return "border-emerald-500/25 bg-emerald-950/10";
-      case LogStatus.BROADCAST_REVERTED:
+      case "BROADCAST_REVERTED":
         return "border-rose-500/20 bg-rose-950/5";
-      case LogStatus.FAILED_REVERT_PREVENTED:
+      case "FAILED_REVERT_PREVENTED":
         return "border-amber-500/20 bg-amber-950/5";
       default:
         return "border-slate-800 bg-slate-900/40";

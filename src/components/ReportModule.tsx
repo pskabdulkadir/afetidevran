@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { FileText, Download, Printer, ShieldCheck, Cpu, RefreshCw, AlertTriangle, Layers, Calendar, Landmark } from "lucide-react";
-import { ArbitrageOpportunity, ExecutionLog, WalletState, SelfHealingLog, LogStatus } from "../types";
+import { ArbitrageOpportunity, ExecutionLog, WalletState, SelfHealingLog } from "../types";
 
 interface ReportModuleProps {
   scans: ArbitrageOpportunity[];
@@ -22,11 +22,11 @@ export default function ReportModule({
 
   const stats = {
     totalScans: scans.length,
-    successfulTxsCount: executions.filter(e => e.status === LogStatus.SUCCESS).length,
-    revertedTxsCount: executions.filter(e => e.status === LogStatus.FAILED_REVERT_PREVENTED).length,
+    successfulTxsCount: executions.filter(e => e.status === "SUCCESS").length,
+    revertedTxsCount: executions.filter(e => e.status === "FAILED_REVERT_PREVENTED").length,
     withdrawnProfits: wallet.totalRevenueUsd,
     savedGasUsd: executions
-      .filter(e => e.status === LogStatus.FAILED_REVERT_PREVENTED)
+      .filter(e => e.status === "FAILED_REVERT_PREVENTED")
       .reduce((acc, curr) => acc + curr.gasCostUsd, 0)
   };
 
