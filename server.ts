@@ -223,7 +223,7 @@ let botConfig = {
   forceExecutionThreshold: parseFloat(process.env.FORCE_EXECUTION_THRESHOLD || "0"), // Force execution threshold (Siber Karargâh modu)
   skipProfitCheck: (process.env.SKIP_PROFIT_CHECK || "").toLowerCase() === "true", // Bypass profit validation
   maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "500000"), // Max gas limit override
-  minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.5") // Minimum net profit in USD for execution
+  minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.01") // Minimum net profit in USD for execution
 };
 
 // Debug: Environment variables check
