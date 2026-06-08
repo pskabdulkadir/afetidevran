@@ -59,13 +59,16 @@ class AutonomousWatchdog {
       const pricesForward = await router.getAmountsOut(amount, [USDC, WETH]);
       const pricesBackward = await router.getAmountsOut(pricesForward[1], [WETH, USDC]);
 
-      const spread = ((pricesBackward[1] - amount) / amount) * 100;
+      // Convert BigInt to number for calculation
+      const amountNum = Number(amount);
+      const backwardNum = Number(pricesBackward[1]);
+      const spread = ((backwardNum - amountNum) / amountNum) * 100;
 
       this.marketData = {
         spread: spread.toFixed(4),
         lastUpdate: Date.now(),
-        usdcWethPrice: pricesForward[1],
-        wethUsdcPrice: pricesBackward[1],
+        usdcWethPrice: pricesForward[1].toString(),
+        wethUsdcPrice: pricesBackward[1].toString(),
       };
 
       console.log(`📊 Market Data: Spread = ${this.marketData.spread}%`);
@@ -218,10 +221,15 @@ app.get("/health", (req, res) => {
   });
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 app.listen(PORT, () => {
   console.log(`\n📊 Dashboard running on http://localhost:${PORT}/report`);
   console.log(`💚 Health check: http://localhost:${PORT}/health\n`);
+}).on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.log(`⚠️ Port ${PORT} in use, trying ${PORT + 1}...`);
+    app.listen(PORT + 1);
+  }
 });
 
 export default AutonomousWatchdog;
