@@ -20,9 +20,25 @@ dotenv.config();
 
 class MultiStrategyEngine {
   constructor() {
-    this.provider = new ethers.JsonRpcProvider(process.env.POLYGON_ARCHIVE_URL);
+    // 🔄 MULTIPLE RPC PROVIDERS - Fallback sistemi
+    this.rpcProviders = [
+      process.env.POLYGON_ARCHIVE_URL || "https://polygon-mainnet.g.alchemy.com/v2/demo",
+      "https://polygon.llamarpc.com",
+      "https://polygon-rpc.com",
+    ];
+
+    this.currentRpcIndex = 0;
+    this.provider = new ethers.JsonRpcProvider(this.rpcProviders[0]);
     this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider);
     this.contractAddress = process.env.CONTRACT_ADDRESS;
+
+    // RPC sağlık takibi
+    this.rpcHealth = {
+      isConnected: true,
+      lastError: null,
+      failureCount: 0,
+      maxFailures: 3,
+    };
 
     // 📊 TARGET PAIRS CONFIGURATION
     this.targetPairs = [
@@ -117,10 +133,19 @@ class MultiStrategyEngine {
 
   /**
    * 🔄 ASYNC PARALLEL SCANNING
-   * Scan all pairs simultaneously
+   * Scan all pairs simultaneously + RPC health check
    */
   async scanAllPairs() {
     try {
+      // 🏥 Check RPC health before scanning
+      const isRpcHealthy = await this.checkRPCHealth();
+
+      if (!isRpcHealthy && !this.rpcHealth.isConnected) {
+        logger.error(`🚨 RPC DISCONNECTED - Cannot scan pairs. Waiting for reconnection...`);
+        this.stats.scansTotal++;
+        return; // Skip scanning if RPC is down
+      }
+
       const scanPromises = this.targetPairs
         .filter(p => p.active)
         .map(pair => this.scanPair(pair));
@@ -132,7 +157,7 @@ class MultiStrategyEngine {
         if (result.status === "fulfilled") {
           this.marketData.pairs[pair.name] = result.value;
         } else if (result.status === "rejected") {
-          console.log(`⚠️ ${pair.name}: Scan failed, marking as inactive temporarily`);
+          logger.warn(`⚠️ ${pair.name}: Scan failed, marking as inactive temporarily`);
           pair.active = false;
           setTimeout(() => {
             pair.active = true;
@@ -145,7 +170,7 @@ class MultiStrategyEngine {
 
       logger.info(`📊 Scanned ${this.stats.scansTotal} times | Opportunities: ${this.stats.opportunitiesFound}`);
     } catch (error) {
-      console.error("❌ Scan error:", error.message);
+      logger.error(`❌ Scan error: ${error.message}`);
     }
   }
 
@@ -306,6 +331,66 @@ class MultiStrategyEngine {
   }
 
   /**
+   * 🔄 RPC HEALTH CHECK & FAILOVER
+   * Switch to backup RPC if primary fails
+   */
+  async switchToNextRPC() {
+    try {
+      this.currentRpcIndex = (this.currentRpcIndex + 1) % this.rpcProviders.length;
+      const newRpcUrl = this.rpcProviders[this.currentRpcIndex];
+
+      logger.warn(`🔄 Switching to backup RPC: ${newRpcUrl}`);
+
+      this.provider = new ethers.JsonRpcProvider(newRpcUrl);
+      this.signer = new ethers.Wallet(process.env.PRIVATE_KEY, this.provider);
+
+      // Test connection
+      await this.provider.getNetwork();
+
+      this.rpcHealth.isConnected = true;
+      this.rpcHealth.failureCount = 0;
+
+      logger.info(`✅ Successfully switched to backup RPC`);
+      return true;
+    } catch (error) {
+      logger.error(`❌ Failed to switch RPC: ${error.message}`);
+      return false;
+    }
+  }
+
+  /**
+   * 🏥 CHECK RPC HEALTH
+   */
+  async checkRPCHealth() {
+    try {
+      const blockNumber = await this.provider.getBlockNumber();
+
+      if (blockNumber === 0) {
+        throw new Error("Invalid block number");
+      }
+
+      this.rpcHealth.isConnected = true;
+      this.rpcHealth.failureCount = 0;
+
+      return true;
+    } catch (error) {
+      logger.error(`⚠️ RPC Health Check Failed: ${error.message}`);
+
+      this.rpcHealth.isConnected = false;
+      this.rpcHealth.lastError = error.message;
+      this.rpcHealth.failureCount++;
+
+      // 3 başarısız deneme sonra fallback
+      if (this.rpcHealth.failureCount >= this.rpcHealth.maxFailures) {
+        logger.error(`🚨 RPC connection lost! Attempting failover...`);
+        return await this.switchToNextRPC();
+      }
+
+      return false;
+    }
+  }
+
+  /**
    * 🔐 NONCE-SAFE TRANSACTION MANAGER
    * Queue and execute transactions safely
    */
@@ -386,7 +471,13 @@ class MultiStrategyEngine {
 
     return {
       mode: "MULTI-STRATEGY ENGINE (Piyasa Kontrol Merkezi)",
-      status: "✅ ACTIVE",
+      status: this.rpcHealth.isConnected ? "🟢 ACTIVE" : "🔴 DISCONNECTED",
+      rpcStatus: {
+        connected: this.rpcHealth.isConnected,
+        currentProvider: this.rpcProviders[this.currentRpcIndex],
+        failureCount: this.rpcHealth.failureCount,
+        lastError: this.rpcHealth.lastError,
+      },
       uptime: `${uptime.toFixed(1)} minutes`,
       pairs: {
         active: this.targetPairs.filter(p => p.active).length,
