@@ -223,7 +223,7 @@ let botConfig = {
   forceExecutionThreshold: parseFloat(process.env.FORCE_EXECUTION_THRESHOLD || "0"), // Force execution threshold (Siber Karargâh modu)
   skipProfitCheck: (process.env.SKIP_PROFIT_CHECK || "").toLowerCase() === "true", // Bypass profit validation
   maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "500000"), // Max gas limit override
-  minProfitThreshold: 1.00 // Hardcoded $1.00 - EIP-1559 dinamik gas için (gas maliyeti $0.40-0.80, minimum $1.00 gerekli)
+  minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.05") // Env'den oku, fallback $0.05 (render'da set edilebilsin)
 };
 
 // Debug: Complete Configuration Report at Startup
@@ -1187,7 +1187,7 @@ app.post("/api/reset", (req, res) => {
     forceExecutionThreshold: parseFloat(process.env.FORCE_EXECUTION_THRESHOLD || "0"),
     skipProfitCheck: (process.env.SKIP_PROFIT_CHECK || "").toLowerCase() === "true",
     maxGasThreshold: parseFloat(process.env.MAX_GAS_THRESHOLD || "500000"),
-    minProfitThreshold: 1.00
+    minProfitThreshold: parseFloat(process.env.MIN_PROFIT_THRESHOLD || "0.05")
   };
 
   activeRpcIndex = 0;
