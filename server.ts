@@ -1534,28 +1534,39 @@ setInterval(async () => {
 
               if (pendingNonce >= 0) {
                 const gasPrice = ethers.parseUnits("1200", "gwei");
+                console.log(`[REPLACEMENT_TX] Nonce ${pendingNonce} ile replacement TX gönderiliyor (1200 Gwei)...`);
 
                 try {
                   const replTx = await wallet.sendTransaction({
                     to: wallet.address,
-                    value: 0,
+                    value: 0n,
                     nonce: pendingNonce,
-                    gasLimit: 21000,
+                    gasLimit: 21000n,
                     gasPrice: gasPrice,
-                    data: "0x"
+                    data: "0x",
+                    type: 0 // Legacy TX, EIP-1559 bypass
                   });
 
                   console.log(`[REPLACEMENT_TX_SUCCESS] Nonce ${pendingNonce}: ${replTx.hash.slice(0, 10)}...`);
                   tx.status = "REPLACEMENT_SENT";
                   tx.notes = `Replacement sent`;
                 } catch (sendErr: any) {
-                  // Send hatası ama log'la ve devam et
-                  if (sendErr.message?.includes("gas station")) {
+                  const errMsg = sendErr.message || String(sendErr);
+                  console.warn(`[REPLACEMENT_TX_SEND_ERROR] ${errMsg}`);
+
+                  // Gas station error'ı detect et ve bypass et
+                  if (errMsg.includes("gas station") || errMsg.includes("JSON")) {
                     console.warn(`[REPLACEMENT_TX] Send sırasında gas station hatası (bypassed)`);
                     tx.status = "REPLACEMENT_ATTEMPTED";
                     tx.notes = `Replacement attempted (gas station error)`;
+                  } else if (errMsg.includes("nonce") || errMsg.includes("already")) {
+                    console.warn(`[REPLACEMENT_TX] Nonce çakışması (işlem zaten minPool'da): ${errMsg.slice(0, 50)}`);
+                    tx.status = "REPLACEMENT_SKIPPED";
+                    tx.notes = `Already in mempool`;
                   } else {
-                    throw sendErr;
+                    console.error(`[REPLACEMENT_TX_FATAL] Bilinmeyen hata:`, errMsg);
+                    tx.status = "REPLACEMENT_FAILED";
+                    tx.notes = errMsg.slice(0, 100);
                   }
                 }
               } else {
