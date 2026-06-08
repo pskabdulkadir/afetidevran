@@ -73,15 +73,16 @@ class AutonomousWatchdog {
 
       console.log(`📊 Market Data: Spread = ${this.marketData.spread}%`);
 
-      // Try to send to contract
-      if (this.contractAddress) {
+      // Contract logging is optional - don't block if it fails
+      if (this.contractAddress && this.marketData.spread > 0.5) {
+        // Only try to log when spread is profitable (optional)
         try {
           await this.contract.captureMarketData(
             pricesForward[1],
             pricesBackward[1]
           );
         } catch (err) {
-          console.log(`⚠️ Could not log to contract: ${err.message}`);
+          // Silently continue - this is optional
         }
       }
     } catch (error) {
