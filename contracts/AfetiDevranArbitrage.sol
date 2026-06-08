@@ -61,17 +61,35 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
     IPoolAddressesProvider public immutable override ADDRESSES_PROVIDER;
     IPool public immutable override POOL;
 
+    // Dynamic Parameters - AI tarafından güncellenecek
+    uint256 public slippageTolerance = 995;  // 0.5% (995/1000)
+    uint256 public minProfitThreshold = 100; // 0.01 USDC minimum
+    address public watchdogAddress;
+    bool public autoRepairEnabled = true;
+
+    // Hata Takibi
+    uint256 private failureCount = 0;
+    bool public isStopped = false;
+    mapping(string => uint256) public errorFrequency;
+    string[] public recentErrors;
+
+    // Events - AI'ya bilgi sunmak için
     event MultiFlashLoanInitiated(address[] assets, uint256[] amounts);
     event ArbitrageSuccess(uint256 netProfit, address indexed asset);
     event SwapExecuted(string exchange, uint256 inputAmount, uint256 outputAmount);
     event KillSwitchActivated(uint256 failureCount);
     event FailureLogged(string reason, uint256 attemptNumber);
-
-    uint256 private failureCount = 0;
-    bool public isStopped = false;
+    event ParameterUpdated(string paramName, uint256 oldValue, uint256 newValue);
+    event AutoRepairTriggered(string issue, string solution);
+    event MarketDataCaptured(uint256 usdc_weth_price, uint256 weth_usdc_price, uint256 spread);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only contract owner can call this");
+        _;
+    }
+
+    modifier onlyWatchdog() {
+        require(msg.sender == watchdogAddress || msg.sender == owner, "Only watchdog or owner");
         _;
     }
 
@@ -160,7 +178,8 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
         pathBuy[1] = intermediaryToken;
 
         uint256 deadline = block.timestamp + 300;
-        uint256 minBuyAmount = (tradeAmount * 995) / 1000;
+        // Use dynamic slippage tolerance (can be adjusted by watchdog AI)
+        uint256 minBuyAmount = (tradeAmount * slippageTolerance) / 1000;
 
         uint[] memory buyAmounts = IUniswapV2Router02(quickswapRouter).swapExactTokensForTokens(
             tradeAmount,
@@ -179,7 +198,7 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
         pathSell[0] = intermediaryToken;
         pathSell[1] = tradeAsset;
 
-        uint256 minSellAmount = (boughtIntermediaryAmount * 995) / 1000;
+        uint256 minSellAmount = (boughtIntermediaryAmount * slippageTolerance) / 1000;
         uint[] memory sellAmounts = IUniswapV2Router02(sushiswapRouter).swapExactTokensForTokens(
             boughtIntermediaryAmount,
             minSellAmount,
@@ -249,6 +268,47 @@ contract AfetiDevranArbitrage is IFlashLoanReceiver {
         }
 
         return true;
+    }
+
+    // AI Kontrol Fonksiyonları
+    function setWatchdogAddress(address _watchdog) external onlyOwner {
+        watchdogAddress = _watchdog;
+    }
+
+    function updateSlippageTolerance(uint256 newTolerance) external onlyWatchdog {
+        require(newTolerance >= 900 && newTolerance <= 1000, "Invalid slippage (90-100%)");
+        uint256 oldValue = slippageTolerance;
+        slippageTolerance = newTolerance;
+        emit ParameterUpdated("slippageTolerance", oldValue, newTolerance);
+    }
+
+    function updateMinProfit(uint256 newMinProfit) external onlyWatchdog {
+        uint256 oldValue = minProfitThreshold;
+        minProfitThreshold = newMinProfit;
+        emit ParameterUpdated("minProfitThreshold", oldValue, newMinProfit);
+    }
+
+    function enableAutoRepair(bool enabled) external onlyOwner {
+        autoRepairEnabled = enabled;
+    }
+
+    function logError(string calldata errorMsg) external onlyWatchdog {
+        errorFrequency[errorMsg]++;
+        if (recentErrors.length < 10) {
+            recentErrors.push(errorMsg);
+        } else {
+            // Remove oldest error (shift array)
+            for (uint i = 0; i < recentErrors.length - 1; i++) {
+                recentErrors[i] = recentErrors[i + 1];
+            }
+            recentErrors[recentErrors.length - 1] = errorMsg;
+        }
+    }
+
+    function captureMarketData(uint256 usdcWethPrice, uint256 wethUsdcPrice) external onlyWatchdog {
+        uint256 spread = (wethUsdcPrice > usdcWethPrice) ?
+            ((wethUsdcPrice - usdcWethPrice) * 10000) / usdcWethPrice : 0;
+        emit MarketDataCaptured(usdcWethPrice, wethUsdcPrice, spread);
     }
 
     function resetKillSwitch() external onlyOwner {

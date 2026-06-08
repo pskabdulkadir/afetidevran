@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "C:\\Users\\acer\\Desktop\\afetidevran\\afetidevran\\contracts\\AfetiDevranArbitrage.sol": {
-      "lastModificationDate": 1780955702644,
-      "contentHash": "4305a87670b00f74fbcab766a610f1f5",
+      "lastModificationDate": 1780956151012,
+      "contentHash": "f5176cb7534dcab726c9400084a1310f",
       "sourceName": "contracts/AfetiDevranArbitrage.sol",
       "solcConfig": {
         "version": "0.8.20",
