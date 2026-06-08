@@ -1508,7 +1508,7 @@ setInterval(async () => {
       if (txAge > pendingTimeoutSeconds * 1000) {
         console.log(`[REPLACEMENT_TX] Pending işlem timeout (${pendingTimeoutSeconds}s+): ${tx.id}. Daha yüksek gas ile yeniden gönderiliyor...`);
 
-        // Replacement TX: Pending işlemi hard cancel et
+        // Replacement TX: Pending işlemi hard cancel et (Gas Station API hatası ignore et)
         try {
           const pk = process.env.PRIVATE_KEY;
           if (pk && pk.trim() !== "") {
@@ -1517,43 +1517,59 @@ setInterval(async () => {
             const wallet = new ethers.Wallet(cleanPk, rpcProvider);
 
             try {
-              const blockchainNonce = await wallet.getNonce();
-              walletNonce = blockchainNonce;
+              let blockchainNonce = walletNonce + 1; // Last known nonce + 1
+              try {
+                blockchainNonce = await wallet.getNonce();
+                walletNonce = blockchainNonce;
+              } catch (nonceErr: any) {
+                // Gas Station API hatası - önceki nonce'u kullan
+                if (nonceErr.message?.includes("gas station")) {
+                  console.warn(`[REPLACEMENT_TX] Gas Station API hatası, fallback nonce kullanılıyor...`);
+                } else {
+                  throw nonceErr;
+                }
+              }
+
               const pendingNonce = blockchainNonce - 1;
 
               if (pendingNonce >= 0) {
                 const gasPrice = ethers.parseUnits("1200", "gwei");
-                console.log(`[REPLACEMENT_TX] Nonce ${pendingNonce} ile replacement TX gönderiliyor (1200 Gwei)...`);
 
-                const replTx = await wallet.sendTransaction({
-                  to: wallet.address,
-                  value: 0,
-                  nonce: pendingNonce,
-                  gasLimit: 21000,
-                  gasPrice: gasPrice,
-                  data: "0x"
-                });
+                try {
+                  const replTx = await wallet.sendTransaction({
+                    to: wallet.address,
+                    value: 0,
+                    nonce: pendingNonce,
+                    gasLimit: 21000,
+                    gasPrice: gasPrice,
+                    data: "0x"
+                  });
 
-                console.log(`[REPLACEMENT_TX_SUCCESS] Hash: ${replTx.hash.slice(0, 10)}...`);
-                tx.status = "REPLACEMENT_SENT";
-                tx.notes = `Replacement TX sent (Nonce: ${pendingNonce})`;
+                  console.log(`[REPLACEMENT_TX_SUCCESS] Nonce ${pendingNonce}: ${replTx.hash.slice(0, 10)}...`);
+                  tx.status = "REPLACEMENT_SENT";
+                  tx.notes = `Replacement sent`;
+                } catch (sendErr: any) {
+                  // Send hatası ama log'la ve devam et
+                  if (sendErr.message?.includes("gas station")) {
+                    console.warn(`[REPLACEMENT_TX] Send sırasında gas station hatası (bypassed)`);
+                    tx.status = "REPLACEMENT_ATTEMPTED";
+                    tx.notes = `Replacement attempted (gas station error)`;
+                  } else {
+                    throw sendErr;
+                  }
+                }
               } else {
                 tx.status = "TIMEOUT_CANCELLED";
-                tx.notes = `Timeout cancelled (nonce error)`;
               }
-            } catch (getNonceErr) {
-              console.error(`[REPLACEMENT_TX_NONCE_ERROR]`, getNonceErr instanceof Error ? getNonceErr.message : getNonceErr);
+            } catch (blockchainErr) {
+              console.error(`[REPLACEMENT_TX_ERROR]`, blockchainErr instanceof Error ? blockchainErr.message : blockchainErr);
               tx.status = "TIMEOUT_CANCELLED";
-              tx.notes = `Timeout cancelled (getNonce error)`;
             }
           } else {
             tx.status = "TIMEOUT_CANCELLED";
-            tx.notes = `Timeout cancelled (no private key)`;
           }
         } catch (replErr) {
-          console.error(`[REPLACEMENT_TX_ERROR]`, replErr instanceof Error ? replErr.message : replErr);
           tx.status = "TIMEOUT_CANCELLED";
-          tx.notes = `Timeout cancelled (replacement error)`;
         }
       }
     }
